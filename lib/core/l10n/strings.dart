@@ -1,0 +1,387 @@
+import 'package:flutter/widgets.dart';
+
+import '../format.dart';
+
+/// The layout stays left-to-right in both languages. Persian strings are
+/// wrapped in a right-to-left embedding so word order and punctuation are
+/// still right inside each piece of text.
+String rtl(String text) => '\u202B$text\u202C';
+
+/// All user-facing text. A missing translation is a compile error,
+/// because both languages implement the same abstract members.
+abstract class S {
+  const S();
+
+  static S of(BuildContext context) =>
+      Localizations.localeOf(context).languageCode == 'fa' ? const _Fa() : const _En();
+
+  bool get isFa;
+
+  /// Localises the digits in an already formatted number.
+  String n(String value) => isFa ? Fmt.faDigits(value) : value;
+
+  String ms(int value) => n('$value ms');
+
+  // Login
+  String get loginTitle;
+  String get loginSubtitle;
+  String get username;
+  String get usernameHint;
+  String get password;
+  String get passwordHint;
+  String get showPassword;
+  String get hidePassword;
+  String get rememberMe;
+  String get forgotPassword;
+  String get forgotPasswordHelp;
+  String get signIn;
+  String get errUsernameRequired;
+  String get errPasswordShort;
+  String get errInvalidCredentials;
+  String get errNetwork;
+  String get demoHint;
+  String get brandHeadline;
+  String get brandBody;
+  String get featureEncrypted;
+  String get featureCountries;
+  String get featureOneTap;
+
+  // Navigation & pages
+  String get navHome;
+  String get navServers;
+  String get navSettings;
+  String get homeSubtitle;
+  String get serversSubtitle;
+  String get settingsSubtitle;
+
+  // Home
+  String get connect;
+  String get disconnect;
+  String get statusConnected;
+  String get statusConnecting;
+  String get statusDisconnecting;
+  String get statusDisconnected;
+  String get hintTapConnect;
+  String get hintTapDisconnect;
+  String get hintTapCancel;
+  String get location;
+  String get fastestLocation;
+  String get fastestLocationHint;
+  String get change;
+  String get downloadSpeed;
+  String get uploadSpeed;
+  String get sessionData;
+  String get ping;
+  String get planTitle;
+  String planUsed(String used, String total);
+  String planUnlimited(String used);
+  String planExpiresIn(int days);
+  String get planExpiresToday;
+  String get planExpired;
+  String get planNoExpiry;
+  String unsupportedPlatform(String platform);
+  String notAvailableOn(String platform);
+  String get errPermission;
+  String get errConnect;
+  String get errNoServers;
+
+  // Servers
+  String get refresh;
+  String get testPing;
+  String locationsCount(int count);
+  String serversCount(int count);
+  String updatedAt(String time);
+  String get staleList;
+  String get noSubTitle;
+  String get noSubBody;
+  String get subFailedTitle;
+  String get subFailedBody;
+  String get tryAgain;
+  String get emptyServers;
+  String get pingTimeout;
+  String get otherLocations;
+  String get addServers;
+  String get add;
+  String get cancel;
+  String get remove;
+  String get tabSubscription;
+  String get tabConfig;
+  String get subName;
+  String get subUrl;
+  String get configText;
+  String get configHint;
+  String get paste;
+  String get errInvalidUrl;
+  String get errDuplicateSub;
+  String get errNoConfigs;
+  String configsAdded(int count);
+  String get localConfigs;
+  String get noServersTitle;
+  String get noServersBody;
+  String get refreshFailed;
+  String get loadFailed;
+  String get loadingServers;
+  String removeTitle(String name);
+  String get removeSourceBody;
+  String get removeConfig;
+
+  // Settings
+  String get appearance;
+  String get appearanceSubtitle;
+  String get themeLight;
+  String get themeDark;
+  String get themeSystem;
+  String get accentColor;
+  String accentSwatch(int n);
+  String get glassMode;
+  String get glassModeHint;
+  String get language;
+  String get languageSubtitle;
+  String get account;
+  String get signedInAs;
+  String get signOut;
+  String get changeTheme;
+  String version(String v);
+}
+
+class _En extends S {
+  const _En();
+  @override bool get isFa => false;
+
+  @override String get loginTitle => 'Welcome back';
+  @override String get loginSubtitle => 'Sign in to see your servers and connect.';
+  @override String get username => 'Username';
+  @override String get usernameHint => 'Your account username';
+  @override String get password => 'Password';
+  @override String get passwordHint => 'At least 6 characters';
+  @override String get showPassword => 'Show password';
+  @override String get hidePassword => 'Hide password';
+  @override String get rememberMe => 'Keep me signed in';
+  @override String get forgotPassword => 'Forgot password?';
+  @override String get forgotPasswordHelp => 'Contact support to reset your password.';
+  @override String get signIn => 'Sign in';
+  @override String get errUsernameRequired => 'Enter your username.';
+  @override String get errPasswordShort => 'Password must be at least 6 characters.';
+  @override String get errInvalidCredentials => 'Username or password is wrong. Check them and try again.';
+  @override String get errNetwork => "Couldn't reach the server. Check your internet and try again.";
+  @override String get demoHint => 'Demo account: demo / demo1234';
+  @override String get brandHeadline => 'One tap to a fast, private connection.';
+  @override String get brandBody => 'Pick a country, connect, and get back to what you were doing.';
+  @override String get featureEncrypted => 'TLS encrypted';
+  @override String get featureCountries => 'Several countries';
+  @override String get featureOneTap => 'One-tap connect';
+
+  @override String get navHome => 'Home';
+  @override String get navServers => 'Servers';
+  @override String get navSettings => 'Settings';
+  @override String get homeSubtitle => 'Connection status and usage';
+  @override String get serversSubtitle => 'Pick the country you want to connect through';
+  @override String get settingsSubtitle => 'Appearance, language and account';
+
+  @override String get connect => 'Connect';
+  @override String get disconnect => 'Disconnect';
+  @override String get statusConnected => 'Connected';
+  @override String get statusConnecting => 'Connecting…';
+  @override String get statusDisconnecting => 'Disconnecting…';
+  @override String get statusDisconnected => 'Not connected';
+  @override String get hintTapConnect => 'Tap to connect';
+  @override String get hintTapDisconnect => 'Tap to disconnect';
+  @override String get hintTapCancel => 'Tap to cancel';
+  @override String get location => 'Location';
+  @override String get fastestLocation => 'Fastest location';
+  @override String get fastestLocationHint => 'Chosen by lowest ping';
+  @override String get change => 'Change';
+  @override String get downloadSpeed => 'Download';
+  @override String get uploadSpeed => 'Upload';
+  @override String get sessionData => 'This session';
+  @override String get ping => 'Ping';
+  @override String get planTitle => 'Your plan';
+  @override String planUsed(String used, String total) => '$used of $total used';
+  @override String planUnlimited(String used) => '$used used, no data cap';
+  @override String planExpiresIn(int days) => days == 1 ? 'Expires tomorrow' : 'Expires in $days days';
+  @override String get planExpiresToday => 'Expires today';
+  @override String get planExpired => 'Expired';
+  @override String get planNoExpiry => 'No expiry date';
+  @override String unsupportedPlatform(String platform) => "flutter_vless has no VPN engine for $platform, so connecting is off here. The server list is live, and ping works if the xray binary is next to the app or on PATH.";
+  @override String notAvailableOn(String platform) => 'Not available on $platform';
+  @override String get errPermission => 'VPN permission was not granted. Allow it to connect.';
+  @override String get errConnect => "Couldn't start the connection. Try another location.";
+  @override String get errNoServers => 'No servers yet. Add a subscription or configs in Servers.';
+
+  @override String get refresh => 'Refresh';
+  @override String get testPing => 'Test ping';
+  @override String locationsCount(int count) => count == 1 ? '1 location' : '$count locations';
+  @override String serversCount(int count) => count == 1 ? '1 server' : '$count servers';
+  @override String updatedAt(String time) => 'Updated $time';
+  @override String get staleList => "Showing the saved list. The subscription couldn't be refreshed.";
+  @override String get noSubTitle => 'No subscription link';
+  @override String get noSubBody => "Your account doesn't have a subscription yet.";
+  @override String get subFailedTitle => "Couldn't load servers";
+  @override String get subFailedBody => 'Check your internet and try again.';
+  @override String get tryAgain => 'Try again';
+  @override String get emptyServers => 'This subscription has no servers the app can use.';
+  @override String get pingTimeout => 'Timeout';
+  @override String get otherLocations => 'Other';
+  @override String get addServers => 'Add servers';
+  @override String get add => 'Add';
+  @override String get cancel => 'Cancel';
+  @override String get remove => 'Remove';
+  @override String get tabSubscription => 'Subscription';
+  @override String get tabConfig => 'Configs';
+  @override String get subName => 'Name (optional)';
+  @override String get subUrl => 'Subscription link';
+  @override String get configText => 'Configs';
+  @override String get configHint => 'vless://, vmess://, trojan://, ss://… one per line';
+  @override String get paste => 'Paste';
+  @override String get errInvalidUrl => 'Enter a link that starts with http:// or https://.';
+  @override String get errDuplicateSub => 'This subscription is already added.';
+  @override String get errNoConfigs => 'No new supported configs found in that text.';
+  @override String configsAdded(int count) => count == 1 ? '1 config added' : '$count configs added';
+  @override String get localConfigs => 'Local configs';
+  @override String get noServersTitle => 'No servers yet';
+  @override String get noServersBody => 'Add a subscription link or paste configs to get started.';
+  @override String get refreshFailed => "Couldn't refresh, showing the saved list";
+  @override String get loadFailed => "Couldn't load this subscription";
+  @override String get loadingServers => 'Loading servers…';
+  @override String removeTitle(String name) => 'Remove $name?';
+  @override String get removeSourceBody => 'Its servers will disappear from the list.';
+  @override String get removeConfig => 'Remove config';
+
+  @override String get appearance => 'Appearance';
+  @override String get appearanceSubtitle => 'Theme, accent color and glass';
+  @override String get themeLight => 'Light';
+  @override String get themeDark => 'Dark';
+  @override String get themeSystem => 'System';
+  @override String get accentColor => 'Accent color';
+  @override String accentSwatch(int n) => 'Accent color $n';
+  @override String get glassMode => 'Glass effect';
+  @override String get glassModeHint => 'Translucent, tinted surfaces over the colour backdrop.';
+  @override String get language => 'Language';
+  @override String get languageSubtitle => 'The layout stays the same in both';
+  @override String get account => 'Account';
+  @override String get signedInAs => 'Signed in as';
+  @override String get signOut => 'Sign out';
+  @override String get changeTheme => 'Change theme';
+  @override String version(String v) => 'Version $v';
+}
+
+class _Fa extends S {
+  const _Fa();
+  @override bool get isFa => true;
+
+  @override String get loginTitle => rtl('خوش برگشتی');
+  @override String get loginSubtitle => rtl('وارد شو تا سرورهات رو ببینی و وصل بشی.');
+  @override String get username => rtl('نام کاربری');
+  @override String get usernameHint => rtl('نام کاربری اکانتت');
+  @override String get password => rtl('رمز عبور');
+  @override String get passwordHint => rtl('حداقل ۶ کاراکتر');
+  @override String get showPassword => rtl('نمایش رمز');
+  @override String get hidePassword => rtl('پنهان کردن رمز');
+  @override String get rememberMe => rtl('وارد بمونم');
+  @override String get forgotPassword => rtl('رمز رو فراموش کردی؟');
+  @override String get forgotPasswordHelp => rtl('برای بازیابی رمز با پشتیبانی در تماس باش.');
+  @override String get signIn => rtl('ورود');
+  @override String get errUsernameRequired => rtl('نام کاربری رو وارد کن.');
+  @override String get errPasswordShort => rtl('رمز باید حداقل ۶ کاراکتر باشه.');
+  @override String get errInvalidCredentials => rtl('نام کاربری یا رمز اشتباهه. دوباره چک کن و امتحان کن.');
+  @override String get errNetwork => rtl('به سرور وصل نشد. اینترنتت رو چک کن و دوباره امتحان کن.');
+  @override String get demoHint => rtl('اکانت آزمایشی: demo / demo1234');
+  @override String get brandHeadline => rtl('با یه لمس، به اتصال سریع و امن وصل شو.');
+  @override String get brandBody => rtl('کشور رو انتخاب کن، وصل شو و برگرد سر کارت.');
+  @override String get featureEncrypted => rtl('رمزنگاری TLS');
+  @override String get featureCountries => rtl('چند کشور');
+  @override String get featureOneTap => rtl('اتصال با یه لمس');
+
+  @override String get navHome => rtl('خانه');
+  @override String get navServers => rtl('سرورها');
+  @override String get navSettings => rtl('تنظیمات');
+  @override String get homeSubtitle => rtl('وضعیت اتصال و مصرف');
+  @override String get serversSubtitle => rtl('کشوری که می‌خوای ازش وصل بشی رو انتخاب کن');
+  @override String get settingsSubtitle => rtl('ظاهر، زبان و حساب کاربری');
+
+  @override String get connect => rtl('اتصال');
+  @override String get disconnect => rtl('قطع اتصال');
+  @override String get statusConnected => rtl('وصل');
+  @override String get statusConnecting => rtl('در حال اتصال…');
+  @override String get statusDisconnecting => rtl('در حال قطع…');
+  @override String get statusDisconnected => rtl('وصل نیستی');
+  @override String get hintTapConnect => rtl('برای اتصال بزن');
+  @override String get hintTapDisconnect => rtl('برای قطع اتصال بزن');
+  @override String get hintTapCancel => rtl('برای لغو بزن');
+  @override String get location => rtl('لوکیشن');
+  @override String get fastestLocation => rtl('سریع‌ترین لوکیشن');
+  @override String get fastestLocationHint => rtl('با کمترین پینگ انتخاب می‌شه');
+  @override String get change => rtl('تغییر');
+  @override String get downloadSpeed => rtl('دانلود');
+  @override String get uploadSpeed => rtl('آپلود');
+  @override String get sessionData => rtl('این جلسه');
+  @override String get ping => rtl('پینگ');
+  @override String get planTitle => rtl('اشتراک تو');
+  @override String planUsed(String used, String total) => rtl('$used از $total مصرف شده');
+  @override String planUnlimited(String used) => rtl('$used مصرف شده، بدون محدودیت حجم');
+  @override String planExpiresIn(int days) => rtl(days == 1 ? 'فردا تموم می‌شه' : '${n('$days')} روز تا پایان اشتراک');
+  @override String get planExpiresToday => rtl('امروز تموم می‌شه');
+  @override String get planExpired => rtl('منقضی شده');
+  @override String get planNoExpiry => rtl('بدون تاریخ انقضا');
+  @override String unsupportedPlatform(String platform) => rtl('flutter_vless برای $platform موتور VPN نداره، پس اتصال اینجا خاموشه. لیست سرورها واقعیه و اگه فایل xray کنار اپ یا توی PATH باشه، پینگ هم کار می‌کنه.');
+  @override String notAvailableOn(String platform) => rtl('روی $platform در دسترس نیست');
+  @override String get errPermission => rtl('اجازه‌ی VPN داده نشد. برای اتصال اجازه بده.');
+  @override String get errConnect => rtl('اتصال برقرار نشد. یه لوکیشن دیگه رو امتحان کن.');
+  @override String get errNoServers => rtl('هنوز سروری نیست. توی سرورها اشتراک یا کانفیگ اضافه کن.');
+
+  @override String get refresh => rtl('به‌روزرسانی');
+  @override String get testPing => rtl('تست پینگ');
+  @override String locationsCount(int count) => rtl('${n('$count')} لوکیشن');
+  @override String serversCount(int count) => rtl('${n('$count')} سرور');
+  @override String updatedAt(String time) => rtl('به‌روزرسانی ساعت ${n(time)}');
+  @override String get staleList => rtl('لیست ذخیره‌شده رو می‌بینی. اشتراک به‌روز نشد.');
+  @override String get noSubTitle => rtl('لینک اشتراک تنظیم نشده');
+  @override String get noSubBody => rtl('اکانتت هنوز اشتراکی نداره.');
+  @override String get subFailedTitle => rtl('سرورها لود نشدن');
+  @override String get subFailedBody => rtl('اینترنتت رو چک کن و دوباره امتحان کن.');
+  @override String get tryAgain => rtl('دوباره امتحان کن');
+  @override String get emptyServers => rtl('توی این اشتراک سروری که اپ بتونه استفاده کنه نیست.');
+  @override String get pingTimeout => rtl('بدون پاسخ');
+  @override String get otherLocations => rtl('سایر');
+  @override String get addServers => rtl('افزودن سرور');
+  @override String get add => rtl('افزودن');
+  @override String get cancel => rtl('انصراف');
+  @override String get remove => rtl('حذف');
+  @override String get tabSubscription => rtl('اشتراک');
+  @override String get tabConfig => rtl('کانفیگ');
+  @override String get subName => rtl('اسم (اختیاری)');
+  @override String get subUrl => rtl('لینک اشتراک');
+  @override String get configText => rtl('کانفیگ‌ها');
+  @override String get configHint => 'vless://, vmess://, trojan://, ss://…';
+  @override String get paste => rtl('چسباندن');
+  @override String get errInvalidUrl => rtl('یه لینک وارد کن که با http:// یا https:// شروع بشه.');
+  @override String get errDuplicateSub => rtl('این اشتراک قبلاً اضافه شده.');
+  @override String get errNoConfigs => rtl('توی این متن کانفیگ جدید قابل‌استفاده‌ای پیدا نشد.');
+  @override String configsAdded(int count) => rtl('${n('$count')} کانفیگ اضافه شد');
+  @override String get localConfigs => rtl('کانفیگ‌های دستی');
+  @override String get noServersTitle => rtl('هنوز سروری نداری');
+  @override String get noServersBody => rtl('یه لینک اشتراک اضافه کن یا کانفیگ‌هات رو بچسبون.');
+  @override String get refreshFailed => rtl('به‌روز نشد، لیست ذخیره‌شده رو می‌بینی');
+  @override String get loadFailed => rtl('این اشتراک لود نشد');
+  @override String get loadingServers => rtl('در حال گرفتن سرورها…');
+  @override String removeTitle(String name) => rtl('$name حذف بشه؟');
+  @override String get removeSourceBody => rtl('سرورهاش از لیست حذف می‌شن.');
+  @override String get removeConfig => rtl('حذف کانفیگ');
+
+  @override String get appearance => rtl('ظاهر');
+  @override String get appearanceSubtitle => rtl('تم، رنگ اصلی و افکت شیشه');
+  @override String get themeLight => rtl('روشن');
+  @override String get themeDark => rtl('تیره');
+  @override String get themeSystem => rtl('سیستم');
+  @override String get accentColor => rtl('رنگ اصلی');
+  @override String accentSwatch(int n) => rtl('رنگ ${this.n('$n')}');
+  @override String get glassMode => rtl('افکت شیشه‌ای');
+  @override String get glassModeHint => rtl('سطح‌های شفاف و رنگی روی پس‌زمینه‌ی رنگی.');
+  @override String get language => rtl('زبان');
+  @override String get languageSubtitle => rtl('چیدمان صفحه توی هر دو زبان یکیه');
+  @override String get account => rtl('حساب کاربری');
+  @override String get signedInAs => rtl('وارد شده با');
+  @override String get signOut => rtl('خروج از حساب');
+  @override String get changeTheme => rtl('تغییر تم');
+  @override String version(String v) => rtl('نسخه ${n(v)}');
+}
