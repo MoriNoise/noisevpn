@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
@@ -11,7 +12,17 @@ import 'installed_apps.dart';
 import 'vpn_backend.dart';
 import 'vpn_settings.dart';
 
-enum VpnFailure { unsupported, noServers, permissionDenied, startFailed, timeout }
+enum VpnFailure {
+  unsupported,
+  noServers,
+  permissionDenied,
+
+  /// Windows VPN mode: the app isn't elevated. flutter_vless's
+  /// requestPermission() there only reports elevation, it can't grant it.
+  needsAdmin,
+  startFailed,
+  timeout,
+}
 
 @immutable
 class VpnState {
@@ -104,7 +115,7 @@ class VpnController extends Notifier<VpnState> {
     _sub?.cancel();
     _sub = backend.status.listen(_onStatus);
     _lifecycle?.dispose();
-    _lifecycle = AppLifecycleListener(onResume: verify);
+    _lifecycle = AppLifecycleListener(onResume: verify, onExitRequested: _onExitRequested);
     _watchdog?.cancel();
     _watchdog = Timer.periodic(const Duration(seconds: 3), (_) {
       if (state.phase != VpnPhase.disconnected && DateTime.now().difference(_lastEvent) > _silence) verify();
@@ -159,6 +170,22 @@ class VpnController extends Notifier<VpnState> {
       // the numbers; the server is the one last connected.
       state = state.copyWith(phase: VpnPhase.connected, server: state.server ?? _lastServer());
     }
+  }
+
+  /// Closing the window on desktop. On Windows the plugin keeps its
+  /// traffic barrier after the app exits without an explicit stop, which
+  /// leaves the machine without internet, so stop first.
+  Future<AppExitResponse> _onExitRequested() async {
+    if (state.phase != VpnPhase.disconnected) {
+      _attempt++;
+      _endAttempt();
+      try {
+        await ref.read(vpnBackendProvider).stop().timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('vpn stop on exit failed: $e');
+      }
+    }
+    return AppExitResponse.exit;
   }
 
   VpnServer? _lastServer() {
@@ -252,15 +279,23 @@ class VpnController extends Notifier<VpnState> {
       await backend.ensureInitialized().timeout(_callTimeout);
       if (!current()) return;
 
-      final granted = await backend.requestPermission().timeout(_permissionTimeout);
-      if (!current()) return;
-      if (!granted) {
-        state = state.copyWith(phase: VpnPhase.disconnected, failure: VpnFailure.permissionDenied);
-        return;
-      }
-
       final options = await _options();
       if (!current()) return;
+
+      // Proxy-only opens no tunnel, so it needs neither the Android VPN
+      // dialog nor administrator rights on Windows.
+      if (!options.proxyOnly) {
+        final granted = await backend.requestPermission().timeout(_permissionTimeout);
+        if (!current()) return;
+        if (!granted) {
+          final windows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+          state = state.copyWith(
+            phase: VpnPhase.disconnected,
+            failure: windows ? VpnFailure.needsAdmin : VpnFailure.permissionDenied,
+          );
+          return;
+        }
+      }
 
       // Started before start() so a start() that never returns is covered too.
       _awaitingSince = DateTime.now();

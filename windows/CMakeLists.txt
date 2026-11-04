@@ -106,3 +106,20 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# flutter_vless runtime: Xray core, the TUN helper and Wintun, plus the
+# GeoIP/GeoSite data. The plugin neither downloads nor copies these; it only
+# looks for xray\xray.exe next to noisevpn.exe (not PATH, not the working
+# directory), and wintun.dll has to sit beside tun2socks.exe. The app's own
+# batch ping uses the same xray.exe.
+set(XRAY_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xray")
+foreach(xray_file xray.exe tun2socks.exe wintun.dll geoip.dat geosite.dat)
+  if(NOT EXISTS "${XRAY_RUNTIME_DIR}/${xray_file}")
+    message(FATAL_ERROR
+      "Missing windows/xray/${xray_file}. VPN and ping need the flutter_vless "
+      "Windows runtime in windows/xray/ (see doc/platform/windows.md).")
+  endif()
+endforeach()
+install(DIRECTORY "${XRAY_RUNTIME_DIR}/"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/xray"
+  COMPONENT Runtime)

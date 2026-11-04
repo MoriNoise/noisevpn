@@ -14,12 +14,18 @@ class PageFrame extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.actions = const [],
+    this.expand = false,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
   final List<Widget> actions;
+
+  /// No scroll view: [child] gets all the height under the header, so a
+  /// page can lay itself out to the window. The caller decides when the
+  /// window is tall enough for that.
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -28,46 +34,61 @@ class PageFrame extends StatelessWidget {
     final pad = desktop ? 28.0 : 18.0;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + 8 + bottomInset),
-      child: Align(
-        alignment: AlignmentDirectional.topStart,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
+    final header = Row(
+      children: [
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: AppType.headline.copyWith(color: t.textPrimary)),
-                        const SizedBox(height: 2),
-                        Text(subtitle, style: AppType.body.copyWith(color: t.textMuted)),
-                      ],
-                    ),
-                  ),
-                  for (final a in actions) ...[const SizedBox(width: 8), a],
-                  if (desktop) ...const [
-                    SizedBox(width: 16),
-                    LanguageToggle(),
-                    SizedBox(width: 8),
-                    AppearanceMenuButton(),
-                    SizedBox(width: 8),
-                    ThemeToggleButton(),
-                  ],
-                ],
-              ),
-              SizedBox(height: desktop ? 24 : 18),
-              child,
+              Text(title, style: AppType.headline.copyWith(color: t.textPrimary)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: AppType.body.copyWith(color: t.textMuted)),
             ],
           ),
         ),
-      ),
+        for (final a in actions) ...[const SizedBox(width: 8), a],
+        if (desktop) ...const [
+          SizedBox(width: 16),
+          LanguageToggle(),
+          SizedBox(width: 8),
+          AppearanceMenuButton(),
+          SizedBox(width: 8),
+          ThemeToggleButton(),
+        ],
+      ],
+    );
+    final gap = SizedBox(height: desktop ? 24 : 18);
+
+    // Centered: on a maximised window the page sits in the middle instead
+    // of hugging the sidebar with a dead strip on the far side.
+    Widget frame(Widget column) => Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxWidth),
+            child: SizedBox(width: double.infinity, child: column),
+          ),
+        );
+
+    if (expand) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + bottomInset),
+        child: frame(Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [header, gap, Expanded(child: child)],
+        )),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(pad, pad, pad, pad + 8 + bottomInset),
+      child: frame(Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [header, gap, child],
+      )),
     );
   }
+
+  static const _maxWidth = 1180.0;
 }
 
 /// Icon-only or labelled header action (Refresh, Test ping).

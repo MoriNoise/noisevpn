@@ -84,6 +84,7 @@ abstract class S {
   String get errPermission;
   String get errConnect;
   String get errTimeout;
+  String get errNeedsAdmin;
   String get errNoServers;
 
   // Servers
@@ -242,6 +243,7 @@ class _En extends S {
   @override String get errPermission => 'VPN permission was not granted. Allow it to connect.';
   @override String get errConnect => "Couldn't start the connection. Try another location.";
   @override String get errTimeout => "The server didn't answer in time. Try another location or check your internet.";
+  @override String get errNeedsAdmin => 'VPN mode on Windows needs administrator rights. Reopen the app with "Run as administrator", or turn on Proxy only in Settings.';
   @override String get errNoServers => 'No servers yet. Add a subscription or configs in Servers.';
 
   @override String get refresh => 'Refresh';
@@ -397,6 +399,7 @@ class _Fa extends S {
   @override String get errPermission => rtl('اجازه‌ی VPN داده نشد. برای اتصال اجازه بده.');
   @override String get errConnect => rtl('اتصال برقرار نشد. یه لوکیشن دیگه رو امتحان کن.');
   @override String get errTimeout => rtl('سرور به‌موقع جواب نداد. یه لوکیشن دیگه رو امتحان کن یا اینترنتت رو چک کن.');
+  @override String get errNeedsAdmin => rtl('حالت VPN روی ویندوز دسترسی ادمین می‌خواد. اپ رو با Run as administrator باز کن، یا توی تنظیمات «فقط پروکسی» رو روشن کن.');
   @override String get errNoServers => rtl('هنوز سروری نیست. توی سرورها اشتراک یا کانفیگ اضافه کن.');
 
   @override String get refresh => rtl('به‌روزرسانی');

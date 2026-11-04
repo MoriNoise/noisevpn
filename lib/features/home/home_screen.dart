@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -106,40 +108,158 @@ class HomeScreen extends ConsumerWidget {
       );
     }
 
-    final plan = planSource == null ? null : _PlanCard(source: planSource, compact: false);
-    return PageFrame(
-      title: s.navHome,
-      subtitle: s.homeSubtitle,
-      child: Column(
+    // Desktop and wide tablets: one hero card (button beside its status
+    // and location), live numbers and the plan underneath, sized to the
+    // window instead of a scrolling stack of small cards.
+    final plan = planSource == null ? null : _PlanCard(source: planSource, compact: true);
+    final hero = RepaintBoundary(
+      child: _DesktopHero(
+        supported: supported,
+        location: _LocationCard(
+          server: server,
+          auto: auto,
+          ping: server == null ? null : pings[server.id],
+          flat: true,
+        ),
+      ),
+    );
+    final bottom = SizedBox(
+      height: 112,
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (notice != null) ...[notice, const SizedBox(height: 16)],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(flex: 3, child: RepaintBoundary(child: _StatsBar(pingMs: pingMs))),
+          if (plan != null) ...[const SizedBox(width: 16), Expanded(flex: 2, child: plan)],
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        // A very short window scrolls rather than squeezing the hero.
+        final fits = c.maxHeight >= 640;
+        return PageFrame(
+          title: s.navHome,
+          subtitle: s.homeSubtitle,
+          expand: fits,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                flex: 11,
-                child: Column(
-                  children: [
-                    SizedBox(height: 400, child: RepaintBoundary(child: _ConnectPanel(supported: supported))),
-                    const SizedBox(height: 16),
-                    location,
-                  ],
+              if (notice != null) ...[notice, const SizedBox(height: 16)],
+              if (fits) Expanded(child: hero) else SizedBox(height: 380, child: hero),
+              const SizedBox(height: 16),
+              bottom,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+(String, Color, String) _statusOf(S s, AppTokens t, VpnPhase phase, bool supported) => switch (phase) {
+      VpnPhase.connected => (s.statusConnected, t.success, s.hintTapDisconnect),
+      VpnPhase.connecting => (s.statusConnecting, t.accent, s.hintTapCancel),
+      VpnPhase.disconnecting => (s.statusDisconnecting, t.textMuted, ''),
+      VpnPhase.disconnected => (
+          s.statusDisconnected,
+          t.textPrimary,
+          supported ? s.hintTapConnect : s.notAvailableOn(AppConfig.platformName),
+        ),
+    };
+
+String? _failureOf(S s, VpnFailure? failure) => switch (failure) {
+      VpnFailure.unsupported => s.notAvailableOn(AppConfig.platformName),
+      VpnFailure.noServers => s.errNoServers,
+      VpnFailure.permissionDenied => s.errPermission,
+      VpnFailure.needsAdmin => s.errNeedsAdmin,
+      VpnFailure.startFailed => s.errConnect,
+      VpnFailure.timeout => s.errTimeout,
+      null => null,
+    };
+
+/// Desktop Home's main card: the button on one side; status, timer, errors
+/// and the location on the other.
+class _DesktopHero extends ConsumerWidget {
+  const _DesktopHero({required this.supported, required this.location});
+
+  final bool supported;
+  final Widget location;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final t = context.tokens;
+    final vpn = ref.watch(vpnControllerProvider);
+    final (title, color, hint) = _statusOf(s, t, vpn.phase, supported);
+    final failure = _failureOf(s, vpn.failure);
+    final hairline = t.glassEnabled ? t.borderSoft : t.border;
+
+    return AppCard(
+      padding: const EdgeInsets.all(28),
+      tint: vpn.phase == VpnPhase.connected ? t.success.withValues(alpha: 0.04) : null,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final ring = math.min(c.maxHeight, c.maxWidth * 0.4).clamp(150.0, 280.0).toDouble();
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: ring + 24,
+                child: Center(
+                  child: ConnectButton(
+                    phase: vpn.phase,
+                    enabled: supported,
+                    size: ring,
+                    semanticLabel: vpn.isActive ? s.disconnect : s.connect,
+                    onPressed: () => ref.read(vpnControllerProvider.notifier).toggle(disconnectLabel: s.disconnect),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 32),
+              Container(width: 1, margin: const EdgeInsets.symmetric(vertical: 8), color: hairline),
+              const SizedBox(width: 32),
               Expanded(
-                flex: 9,
-                child: Column(
-                  children: [
-                    RepaintBoundary(child: _StatsGrid(pingMs: pingMs)),
-                    if (plan != null) ...[const SizedBox(height: 16), plan],
-                  ],
+                child: SingleChildScrollView(
+                  // Only ever scrolls when an error banner meets a short window.
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: c.maxHeight),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: Text(
+                            title,
+                            key: ValueKey(vpn.phase),
+                            style: AppType.display.copyWith(color: color),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 26,
+                          child: vpn.phase == VpnPhase.connected
+                              ? Text(
+                                  s.n(Fmt.clock(vpn.duration)),
+                                  style: AppType.metric.copyWith(color: t.textSecondary, fontSize: 18),
+                                )
+                              : Text(hint, style: AppType.body.copyWith(color: t.textMuted)),
+                        ),
+                        if (failure != null) ...[
+                          const SizedBox(height: 16),
+                          NoticeBanner(message: failure, icon: Icons.error_outline_rounded, color: t.danger),
+                        ],
+                        const SizedBox(height: 28),
+                        location,
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -158,24 +278,8 @@ class _ConnectPanel extends ConsumerWidget {
     final t = context.tokens;
     final vpn = ref.watch(vpnControllerProvider);
 
-    final (title, color, hint) = switch (vpn.phase) {
-      VpnPhase.connected => (s.statusConnected, t.success, s.hintTapDisconnect),
-      VpnPhase.connecting => (s.statusConnecting, t.accent, s.hintTapCancel),
-      VpnPhase.disconnecting => (s.statusDisconnecting, t.textMuted, ''),
-      VpnPhase.disconnected => (
-        s.statusDisconnected,
-        t.textPrimary,
-        supported ? s.hintTapConnect : s.notAvailableOn(AppConfig.platformName),
-      ),
-    };
-    final failure = switch (vpn.failure) {
-      VpnFailure.unsupported => s.notAvailableOn(AppConfig.platformName),
-      VpnFailure.noServers => s.errNoServers,
-      VpnFailure.permissionDenied => s.errPermission,
-      VpnFailure.startFailed => s.errConnect,
-      VpnFailure.timeout => s.errTimeout,
-      null => null,
-    };
+    final (title, color, hint) = _statusOf(s, t, vpn.phase, supported);
+    final failure = _failureOf(s, vpn.failure);
     final action = vpn.isActive ? s.disconnect : s.connect;
 
     return AppCard(
@@ -228,11 +332,14 @@ class _ConnectPanel extends ConsumerWidget {
 }
 
 class _LocationCard extends ConsumerWidget {
-  const _LocationCard({required this.server, required this.auto, required this.ping});
+  const _LocationCard({required this.server, required this.auto, required this.ping, this.flat = false});
 
   final VpnServer? server;
   final bool auto;
   final PingResult? ping;
+
+  /// Inside another card (desktop hero): an inset panel, not a second card.
+  final bool flat;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -243,9 +350,8 @@ class _LocationCard extends ConsumerWidget {
     final title = srv == null ? s.fastestLocation : countryName(s, srv.countryCode);
     final subtitle = auto ? s.fastestLocation : (srv?.tag ?? srv?.transport.toUpperCase() ?? '');
 
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
+    const padding = EdgeInsets.symmetric(horizontal: 14, vertical: 12);
+    final row = Row(
         children: [
           srv == null ? const FlagTile.auto() : FlagTile(code: srv.countryCode),
           const SizedBox(width: 12),
@@ -283,13 +389,24 @@ class _LocationCard extends ConsumerWidget {
             onPressed: () => ref.read(shellTabProvider.notifier).go(ShellTabController.servers),
           ),
         ],
+      );
+
+    if (!flat) return AppCard(padding: padding, child: row);
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: t.surfaceHigh.withValues(alpha: t.isDark ? 0.45 : 0.6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: t.glassEnabled ? t.borderSoft : t.border),
       ),
+      child: row,
     );
   }
 }
 
-class _StatsGrid extends ConsumerWidget {
-  const _StatsGrid({required this.pingMs});
+/// The four live numbers in one card, divided by hairlines (desktop).
+class _StatsBar extends ConsumerWidget {
+  const _StatsBar({required this.pingMs});
 
   final int? pingMs;
 
@@ -299,18 +416,55 @@ class _StatsGrid extends ConsumerWidget {
     final s = S.of(context);
     final t = context.tokens;
     final ms = pingMs;
-    final tiles = [
-      _StatTile(icon: Icons.south_rounded, color: t.accent, label: s.downloadSpeed, value: s.n(Fmt.speed(vpn.downloadSpeed))),
-      _StatTile(icon: Icons.north_rounded, color: t.info, label: s.uploadSpeed, value: s.n(Fmt.speed(vpn.uploadSpeed))),
-      _StatTile(icon: Icons.swap_vert_rounded, color: t.warning, label: s.sessionData, value: s.n(Fmt.bytes(vpn.upload + vpn.download))),
-      _StatTile(icon: Icons.speed_rounded, color: t.success, label: s.ping, value: ms == null ? '—' : s.ms(ms)),
+    final hairline = t.glassEnabled ? t.borderSoft : t.border;
+    final items = [
+      (Icons.south_rounded, t.accent, s.downloadSpeed, s.n(Fmt.speed(vpn.downloadSpeed))),
+      (Icons.north_rounded, t.info, s.uploadSpeed, s.n(Fmt.speed(vpn.uploadSpeed))),
+      (Icons.swap_vert_rounded, t.warning, s.sessionData, s.n(Fmt.bytes(vpn.upload + vpn.download))),
+      (Icons.speed_rounded, t.success, s.ping, ms == null ? '—' : s.ms(ms)),
     ];
-    return Column(
-      children: [
-        Row(children: [Expanded(child: tiles[0]), const SizedBox(width: 12), Expanded(child: tiles[1])]),
-        const SizedBox(height: 12),
-        Row(children: [Expanded(child: tiles[2]), const SizedBox(width: 12), Expanded(child: tiles[3])]),
-      ],
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) Container(width: 1, margin: const EdgeInsets.symmetric(vertical: 4), color: hairline),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(items[i].$1, size: 15, color: items[i].$2),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            items[i].$3,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.caption.copyWith(color: t.textMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(items[i].$4, style: AppType.metric.copyWith(color: t.textPrimary, fontSize: 22)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -358,56 +512,6 @@ class _StatsStrip extends ConsumerWidget {
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({required this.icon, required this.color, required this.label, required this.value});
-
-  final IconData icon;
-  final Color color;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 16, color: color),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppType.caption.copyWith(color: t.textMuted),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(value, style: AppType.metric.copyWith(color: t.textPrimary)),
-          ),
         ],
       ),
     );
@@ -472,6 +576,8 @@ class _PlanCard extends StatelessWidget {
       return AppCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(
+          // Centred when the desktop bottom row gives the card a fixed height.
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(

@@ -70,7 +70,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "runasadmin"; Description: "Always run as administrator (needed for TUN mode)"; GroupDescription: "Options:"; Flags: unchecked
 
 [InstallDelete]
 ; Wipe old Flutter assets so files removed in a newer version don't linger.
@@ -85,29 +84,42 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
-; "Always run as administrator" switch (added when ticked, removed when unticked on update).
-Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: string; ValueName: "{app}\{#AppExeName}"; ValueData: "~ RUNASADMIN"; Flags: uninsdeletevalue; Tasks: runasadmin
-Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: none; ValueName: "{app}\{#AppExeName}"; Flags: deletevalue; Tasks: not runasadmin
+; The exe's manifest now asks for administrator itself, so the old
+; "Always run as administrator" option is gone. Remove the compatibility
+; flag older versions may have set.
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: none; ValueName: "{app}\{#AppExeName}"; Flags: deletevalue uninsdeletevalue
 
 [Run]
 ; shellexec so it still launches when "run as administrator" is on.
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent shellexec
 
 [Code]
-{ Kill the app AND anything it started from the install folder (xray\xray.exe),
-  otherwise the VPN core keeps files locked and the update can't replace them. }
+{ Close the app AND anything it started from the install folder (xray.exe,
+  tun2socks.exe), otherwise they keep files locked and the update can't
+  replace them.
+
+  The window is asked to close first: the app then stops the VPN before it
+  exits. Killing it outright while connected leaves flutter_vless's Windows
+  Filtering Platform barrier in place, and the machine has no internet until
+  the app is opened again and disconnected. Whatever is still running after
+  10 seconds is killed. }
 procedure KillAppProcesses();
 var
   ResultCode: Integer;
-  Dir: String;
+  Dir, Cmd: String;
 begin
   Dir := ExpandConstant('{app}');
   if not DirExists(Dir) then
     Exit;
+  Cmd :=
+    '$d = ''' + Dir + '\''; ' +
+    '$m = { $_.Path -and $_.Path.StartsWith($d, [System.StringComparison]::OrdinalIgnoreCase) }; ' +
+    '$p = @(Get-Process | Where-Object $m); ' +
+    '$p | ForEach-Object { [void]$_.CloseMainWindow() }; ' +
+    '$p | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue; ' +
+    'Get-Process | Where-Object $m | Stop-Process -Force -ErrorAction SilentlyContinue';
   Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process | ' +
-    'Where-Object { $_.Path -and $_.Path.StartsWith(''' + Dir + '\'', [System.StringComparison]::OrdinalIgnoreCase) } | ' +
-    'Stop-Process -Force -ErrorAction SilentlyContinue"',
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' + Cmd + '"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(800);
 end;

@@ -258,6 +258,40 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      # flutter_vless doesn't download or copy its Windows runtime; the app
+      # needs xray\xray.exe, tun2socks.exe, wintun.dll and the geo data next
+      # to noisevpn.exe. windows/CMakeLists.txt copies windows/xray into the
+      # build and fails the build if a file is missing. Every file is pinned
+      # by SHA-256.
+      - name: Fetch flutter_vless Windows runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $dir = "windows\xray"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+
+          function Get-Verified($url, $out, $sha) {
+            Invoke-WebRequest $url -OutFile $out
+            $h = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
+            if ($h -ne $sha) { throw "SHA-256 mismatch for ${out}: $h" }
+          }
+
+          # Xray core + geoip/geosite (managed 26.10.31-r2)
+          $zip = "$env:RUNNER_TEMP\xray-managed.zip"
+          Get-Verified "https://github.com/XIIIFOX/flutter_vless/releases/download/xray-windows-v26.10.31-r2/Xray-windows-managed-64.zip" `
+            $zip "dfdf80c45268719d047cb14560fca11b6815b98961916c9b5dc68ad2a547f824"
+          Expand-Archive $zip -DestinationPath $dir -Force
+          $h = (Get-FileHash "$dir\xray.exe" -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne "78268f751286f3e02f460dffbb2d7be6be8d2d870f3879a1d872c1eeb086d030") { throw "xray.exe SHA-256 mismatch: $h" }
+
+          # TUN helper + Wintun, from a pinned flutter_vless commit
+          $base = "https://raw.githubusercontent.com/XIIIFOX/flutter_vless/6530f1ed25e1b0aede03d588897f67289ef4f910/example/windows/xray"
+          Get-Verified "$base/tun2socks.exe" "$dir\tun2socks.exe" "a1f8ac84852ed9a9c7a50949cd0290b6f1594e118bf053416b9b55b7cd7ae414"
+          Get-Verified "$base/wintun.dll"    "$dir\wintun.dll"    "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce"
+
+          Get-ChildItem $dir
+
       - name: Build Windows
         run: flutter build windows --release --build-name=${{ steps.ver.outputs.name }} --build-number=${{ github.run_number }}
 
@@ -270,6 +304,10 @@ jobs:
             Copy-Item "$env:WINDIR\System32\$dll" $dst -Force
           }
           Get-ChildItem $dst
+          # The VPN engine must ship inside the installer.
+          foreach ($f in "xray.exe", "tun2socks.exe", "wintun.dll", "geoip.dat", "geosite.dat") {
+            if (-not (Test-Path "$dst\xray\$f")) { throw "xray\$f missing from the build output" }
+          }
 
       - name: Build Windows installer (setup.exe)
         shell: pwsh
@@ -396,6 +434,7 @@ jobs:
             echo "The same file installs the app the first time and updates it after that. Your settings are kept."
             echo
             echo "**Windows:** run the \`.exe\`. If SmartScreen shows a warning, click **More info → Run anyway**."
+            echo "The app asks for administrator rights when it opens; VPN mode on Windows needs them."
             echo
             echo "**macOS:** open the \`.pkg\`. If macOS blocks it, go to **System Settings → Privacy & Security** and click **Open Anyway** (on macOS 13–14 you can also right-click the file → **Open**)."
           } > notes.md

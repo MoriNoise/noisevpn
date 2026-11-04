@@ -2,7 +2,17 @@
 
 #include <optional>
 
+#include <flutter_windows.h>
+
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+// Smallest window, in logical pixels.
+constexpr int kMinWidth = 960;
+constexpr int kMinHeight = 640;
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -63,8 +73,20 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
   switch (message) {
     case WM_FONTCHANGE:
-      flutter_controller_->engine()->ReloadSystemFonts();
+      if (flutter_controller_) {
+        flutter_controller_->engine()->ReloadSystemFonts();
+      }
       break;
+    case WM_GETMINMAXINFO: {
+      // Below this the desktop layout (sidebar + hero card) gets cramped.
+      // Logical pixels, scaled to the monitor the window is on.
+      const UINT dpi = FlutterDesktopGetDpiForMonitor(
+          MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
+      auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
+      info->ptMinTrackSize.x = MulDiv(kMinWidth, dpi, 96);
+      info->ptMinTrackSize.y = MulDiv(kMinHeight, dpi, 96);
+      return 0;
+    }
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
