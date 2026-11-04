@@ -59,6 +59,14 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
+      - name: Read app version
+        id: ver
+        run: |
+          NAME=$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/[+-].*//' | tr -d '\r ')
+          [ -z "$NAME" ] && NAME="1.0.0"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "App version: $NAME (build ${{ github.run_number }})"
+
       - name: Clean stale build output
         run: |
           rm -rf build
@@ -118,18 +126,85 @@ jobs:
         run: flutter pub get
 
       - name: Build macOS
-        run: flutter build macos --release
-
-      - name: Zip macOS
         run: |
-          cd build/macos/Build/Products/Release
-          zip -r "$GITHUB_WORKSPACE/noise_vpn_mac_build_${{ github.run_number }}.zip" *.app
+          flutter build macos --release \
+            --build-name=${{ steps.ver.outputs.name }} \
+            --build-number=${{ github.run_number }}
+
+      - name: Build macOS installer (.pkg)
+        env:
+          VERSION: ${{ steps.ver.outputs.name }}.${{ github.run_number }}
+          OUT: noise_vpn_mac_installer_${{ github.run_number }}.pkg
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -1)
+          [ -n "$APP_PATH" ] || { echo "::error::No .app found"; exit 1; }
+          APP_NAME=$(basename "$APP_PATH")
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP_PATH/Contents/Info.plist")
+          echo "App: $APP_NAME  ($BUNDLE_ID)  version $VERSION"
+
+          # Ad-hoc sign the whole bundle. Without this, an unsigned app reads as
+          # "damaged" on Apple Silicon. Entitlements are unchanged (none, as before).
+          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --deep --strict "$APP_PATH"
+
+          rm -rf pkg && mkdir -p pkg/root pkg/scripts
+          ditto "$APP_PATH" "pkg/root/$APP_NAME"
+
+          # preinstall: quit the running app + its VPN core, remove the old copy
+          # so the update is a clean replace (no leftover files from old versions).
+          cat > pkg/scripts/preinstall <<EOF
+          #!/bin/bash
+          pkill -f "/Applications/$APP_NAME/Contents/" 2>/dev/null || true
+          sleep 1
+          pkill -9 -f "/Applications/$APP_NAME/Contents/" 2>/dev/null || true
+          rm -rf "/Applications/$APP_NAME"
+          exit 0
+          EOF
+
+          cat > pkg/scripts/postinstall <<EOF
+          #!/bin/bash
+          xattr -dr com.apple.quarantine "/Applications/$APP_NAME" 2>/dev/null || true
+          exit 0
+          EOF
+          chmod +x pkg/scripts/preinstall pkg/scripts/postinstall
+
+          # Always install into /Applications. Without this, macOS "relocates" the
+          # update to wherever it finds another copy of the app with the same ID.
+          pkgbuild --analyze --root pkg/root pkg/component.plist
+          plutil -replace 0.BundleIsRelocatable -bool NO pkg/component.plist
+          plutil -replace 0.BundleOverwriteAction -string upgrade pkg/component.plist
+
+          pkgbuild \
+            --root pkg/root \
+            --component-plist pkg/component.plist \
+            --scripts pkg/scripts \
+            --identifier "$BUNDLE_ID.pkg" \
+            --version "$VERSION" \
+            --install-location /Applications \
+            pkg/app.pkg
+
+          # Wrap it in a product archive with a title, min macOS and native arm64
+          # support (otherwise Apple Silicon Macs get asked to install Rosetta).
+          productbuild --synthesize --package pkg/app.pkg pkg/distribution.xml
+          perl -0pi -e 's|(<installer-gui-script[^>]*>)|$1\n    <title>Noise VPN</title>\n    <allowed-os-versions><os-version min="'"$MACOS_DEPLOYMENT_TARGET"'"/></allowed-os-versions>|' pkg/distribution.xml
+          grep -q hostArchitectures pkg/distribution.xml || \
+            perl -pi -e 's|<options |<options hostArchitectures="x86_64,arm64" |' pkg/distribution.xml
+          cat pkg/distribution.xml
+
+          productbuild \
+            --distribution pkg/distribution.xml \
+            --package-path pkg \
+            "$GITHUB_WORKSPACE/$OUT"
+
+          pkgutil --check-signature "$GITHUB_WORKSPACE/$OUT" || true
+          ls -lh "$GITHUB_WORKSPACE/$OUT"
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          files: noise_vpn_mac_build_${{ github.run_number }}.zip
+          files: noise_vpn_mac_installer_${{ github.run_number }}.pkg
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,6 +236,15 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Read app version
+        id: ver
+        shell: bash
+        run: |
+          NAME=$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/[+-].*//' | tr -d '\r ')
+          [ -z "$NAME" ] && NAME="1.0.0"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "App version: $NAME (build ${{ github.run_number }})"
+
       - name: Clean stale build output
         shell: pwsh
         run: |
@@ -175,18 +259,40 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        run: flutter build windows --release
+        run: flutter build windows --release --build-name=${{ steps.ver.outputs.name }} --build-number=${{ github.run_number }}
 
-      - name: Zip Windows
+      - name: Bundle VC++ runtime next to the exe
         shell: pwsh
         run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "${{ github.workspace }}\noise_vpn_windows_build_${{ github.run_number }}.zip"
+          # Flutter apps need these; a fresh Windows PC may not have them.
+          $dst = "build\windows\x64\runner\Release"
+          foreach ($dll in "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll") {
+            Copy-Item "$env:WINDIR\System32\$dll" $dst -Force
+          }
+          Get-ChildItem $dst
+
+      - name: Build Windows installer (setup.exe)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc `
+            "/DAppVersion=${{ steps.ver.outputs.name }}" `
+            "/DAppBuild=${{ github.run_number }}" `
+            "/DBuildDir=${{ github.workspace }}\build\windows\x64\runner\Release" `
+            "/DOutputDir=${{ github.workspace }}" `
+            "/DOutputName=noise_vpn_windows_setup_${{ github.run_number }}" `
+            "windows\installer\noisevpn.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Item "${{ github.workspace }}\noise_vpn_windows_setup_${{ github.run_number }}.exe"
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          files: noise_vpn_windows_build_${{ github.run_number }}.zip
+          files: noise_vpn_windows_setup_${{ github.run_number }}.exe
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -282,9 +388,16 @@ jobs:
             echo
             echo "| Platform | File | Status |"
             echo "|----------|------|--------|"
-            row "noise_vpn_mac_build_${{ github.run_number }}.zip" "🍎 macOS"
-            row "noise_vpn_windows_build_${{ github.run_number }}.zip" "🪟 Windows"
+            row "noise_vpn_mac_installer_${{ github.run_number }}.pkg" "🍎 macOS"
+            row "noise_vpn_windows_setup_${{ github.run_number }}.exe" "🪟 Windows"
             row "noise_vpn_android_build_${{ github.run_number }}.apk" "🤖 Android"
+            echo
+            echo "### Install or update"
+            echo "The same file installs the app the first time and updates it after that. Your settings are kept."
+            echo
+            echo "**Windows:** run the \`.exe\`. If SmartScreen shows a warning, click **More info → Run anyway**."
+            echo
+            echo "**macOS:** open the \`.pkg\`. If macOS blocks it, go to **System Settings → Privacy & Security** and click **Open Anyway** (on macOS 13–14 you can also right-click the file → **Open**)."
           } > notes.md
 
           gh release edit "$TAG" -R "$REPO" --notes-file notes.md
