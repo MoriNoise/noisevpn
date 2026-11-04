@@ -23,12 +23,16 @@ class UnsupportedVpnBackend implements VpnBackend {
     required String remark,
     required String config,
     required String disconnectLabel,
+    VpnStartOptions options = const VpnStartOptions(),
   }) {
     throw UnsupportedError('flutter_vless has no backend on this platform');
   }
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<bool?> isSessionAlive() async => false;
 
   @override
   Future<int?> delay(VpnServer server) async => null;

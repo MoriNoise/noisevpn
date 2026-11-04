@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/prefs.dart';
 import '../servers/server_models.dart';
 import '../servers/servers_controller.dart';
+import 'installed_apps.dart';
 import 'vpn_backend.dart';
+import 'vpn_settings.dart';
 
 enum VpnFailure { unsupported, noServers, permissionDenied, startFailed }
 
@@ -60,22 +64,82 @@ class VpnState {
 }
 
 class VpnController extends Notifier<VpnState> {
+  static const _lastServerKey = 'vpn.lastServerId';
+
+  /// No status for this long while "connected" means: go and check.
+  static const _silence = Duration(seconds: 6);
+
+  /// Right after the user connects or disconnects, the service is still
+  /// starting or stopping; don't second-guess it during this window.
+  static const _grace = Duration(seconds: 10);
+
   StreamSubscription<VpnStatusEvent>? _sub;
   Timer? _stopGuard;
+  Timer? _watchdog;
+  AppLifecycleListener? _lifecycle;
+  DateTime _lastEvent = DateTime.now();
+  DateTime _lastCommand = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   VpnState build() {
     final backend = ref.watch(vpnBackendProvider);
     _sub?.cancel();
     _sub = backend.status.listen(_onStatus);
+    _lifecycle?.dispose();
+    _lifecycle = AppLifecycleListener(onResume: verify);
+    _watchdog?.cancel();
+    _watchdog = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (state.phase != VpnPhase.disconnected && DateTime.now().difference(_lastEvent) > _silence) verify();
+    });
     ref.onDispose(() {
       _sub?.cancel();
       _stopGuard?.cancel();
+      _watchdog?.cancel();
+      _lifecycle?.dispose();
+    });
+
+    // Listen for status from launch, not only after the first Connect, so a
+    // session that is already running (or that ended meanwhile) shows up.
+    Future.microtask(() async {
+      try {
+        await backend.ensureInitialized();
+      } catch (e) {
+        debugPrint('vpn init at launch failed: $e');
+      }
+      await verify();
     });
     return const VpnState();
   }
 
+  /// Brings the screen in line with what is really running. Called on
+  /// launch, when the app comes back to the foreground, and when status
+  /// updates stop arriving.
+  Future<void> verify() async {
+    if (DateTime.now().difference(_lastCommand) < _grace) return;
+    final alive = await ref.read(vpnBackendProvider).isSessionAlive();
+    if (alive == null) return;
+
+    if (!alive && state.phase != VpnPhase.disconnected) {
+      _stopGuard?.cancel();
+      state = state.copyWith(phase: VpnPhase.disconnected, uploadSpeed: 0, downloadSpeed: 0, duration: 0);
+    } else if (alive && state.phase == VpnPhase.disconnected) {
+      // Running from before the app was (re)opened. Status updates fill in
+      // the numbers; the server is the one last connected.
+      state = state.copyWith(phase: VpnPhase.connected, server: state.server ?? _lastServer());
+    }
+  }
+
+  VpnServer? _lastServer() {
+    final id = ref.read(sharedPreferencesProvider).getString(_lastServerKey);
+    if (id == null) return null;
+    for (final s in ref.read(serversControllerProvider).servers) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
   void _onStatus(VpnStatusEvent e) {
+    _lastEvent = DateTime.now();
     // A late "connecting" from the engine must not undo a user's disconnect.
     if (state.phase == VpnPhase.disconnecting && e.phase == VpnPhase.connecting) return;
     if (e.phase == VpnPhase.disconnected) _stopGuard?.cancel();
@@ -112,6 +176,7 @@ class VpnController extends Notifier<VpnState> {
       return;
     }
     final backend = ref.read(vpnBackendProvider);
+    _lastCommand = DateTime.now();
     if (!backend.isSupported) {
       state = state.copyWith(failure: VpnFailure.unsupported);
       return;
@@ -130,15 +195,63 @@ class VpnController extends Notifier<VpnState> {
         state = state.copyWith(phase: VpnPhase.disconnected, failure: VpnFailure.permissionDenied);
         return;
       }
-      await backend.start(remark: server.remark, config: server.config, disconnectLabel: disconnectLabel);
+      await backend.start(
+        remark: server.remark,
+        config: server.config,
+        disconnectLabel: disconnectLabel,
+        options: await _options(),
+      );
+      _lastEvent = DateTime.now();
+      await ref.read(sharedPreferencesProvider).setString(_lastServerKey, server.id);
     } catch (e) {
       debugPrint('vpn start failed: $e');
       state = state.copyWith(phase: VpnPhase.disconnected, failure: VpnFailure.startFailed);
     }
   }
 
+  /// Turns Settings → Connection into flutter_vless options.
+  Future<VpnStartOptions> _options() async {
+    final settings = ref.read(vpnSettingsProvider);
+    final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    var blocked = <String>[];
+    if (android && !settings.proxyOnly && settings.selectedApps.isNotEmpty) {
+      switch (settings.perAppMode) {
+        case PerAppMode.off:
+          break;
+        case PerAppMode.bypass:
+          blocked = settings.selectedApps.toList();
+        case PerAppMode.only:
+          try {
+            final apps = await ref.read(installedAppsProvider.future);
+            blocked = [
+              for (final a in apps)
+                if (!settings.selectedApps.contains(a.package)) a.package,
+            ];
+          } catch (e) {
+            // Without the app list everything stays in the tunnel.
+            debugPrint('installed apps unavailable: $e');
+          }
+      }
+    }
+    return VpnStartOptions(
+      proxyOnly: settings.proxyOnly,
+      socksPort: settings.socksPort,
+      blockedApps: blocked,
+      bypassSubnets: settings.bypassLan ? VpnSettings.lanSubnets : const [],
+      dnsThroughTunnel: settings.dnsThroughTunnel,
+    );
+  }
+
+  /// Applies changed settings to a running session.
+  Future<void> restart({required String disconnectLabel}) async {
+    if (!state.isActive) return;
+    await ref.read(vpnBackendProvider).stop().catchError((_) {});
+    await connect(disconnectLabel: disconnectLabel);
+  }
+
   Future<void> disconnect() async {
     if (state.phase == VpnPhase.disconnected) return;
+    _lastCommand = DateTime.now();
     state = state.copyWith(phase: VpnPhase.disconnecting);
     // If the engine never confirms, don't leave the button stuck.
     _stopGuard?.cancel();

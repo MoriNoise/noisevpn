@@ -27,6 +27,26 @@ class VpnStatusEvent {
   final int download;
 }
 
+/// Session options from Settings → Connection.
+@immutable
+class VpnStartOptions {
+  const VpnStartOptions({
+    this.proxyOnly = false,
+    this.socksPort = 8142,
+    this.blockedApps = const [],
+    this.bypassSubnets = const [],
+    this.dnsThroughTunnel = true,
+  });
+
+  final bool proxyOnly;
+  final int socksPort;
+
+  /// Android packages that skip the tunnel.
+  final List<String> blockedApps;
+  final List<String> bypassSubnets;
+  final bool dnsThroughTunnel;
+}
+
 /// Everything the app needs from a VPN engine. The UI never touches
 /// flutter_vless directly.
 abstract interface class VpnBackend {
@@ -43,9 +63,14 @@ abstract interface class VpnBackend {
     required String remark,
     required String config,
     required String disconnectLabel,
+    VpnStartOptions options = const VpnStartOptions(),
   });
 
   Future<void> stop();
+
+  /// Whether a session is really running right now, independent of the
+  /// status stream. null when the platform can't tell.
+  Future<bool?> isSessionAlive();
 
   /// Delay in ms of a real request through [server]'s own config
   /// (Xray + VLESS/TLS + an HTTPS HEAD to a 204 endpoint), or null when the

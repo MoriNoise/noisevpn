@@ -53,10 +53,7 @@ class ServersController extends Notifier<ServersData> {
       if (local.isNotEmpty) _localSource(local),
     ];
     // Refresh behind the saved copies; can't touch state during build.
-    Future.microtask(() async {
-      _autoPing();
-      await Future.wait([for (final sub in subs) refreshOne(sub.id)]);
-    });
+    Future.microtask(() => Future.wait([for (final sub in subs) refreshOne(sub.id)]));
     return ServersData(sources);
   }
 
@@ -97,13 +94,6 @@ class ServersController extends Notifier<ServersData> {
 
   void _replace(String id, SourceData Function(SourceData) update) {
     state = ServersData([for (final s in state.sources) s.id == id ? update(s) : s]);
-  }
-
-  void _autoPing() {
-    Future.microtask(() {
-      if (ref.read(vpnControllerProvider).phase != VpnPhase.disconnected) return;
-      ref.read(pingControllerProvider.notifier).testAll(state.servers, onlyMissing: true);
-    });
   }
 
   /// Downloads one subscription. On failure the saved servers stay.
@@ -148,7 +138,6 @@ class ServersController extends Notifier<ServersData> {
           fetchedAt: now,
         ),
       );
-      _autoPing();
     } catch (e) {
       debugPrint('subscription $id refresh failed: $e');
       if (!state.sources.any((s) => s.id == id)) return;
@@ -210,7 +199,6 @@ class ServersController extends Notifier<ServersData> {
       ...state.sources.where((s) => !s.isLocal),
       _localSource(links),
     ]);
-    _autoPing();
     return added;
   }
 
@@ -247,11 +235,14 @@ final serversControllerProvider = NotifierProvider<ServersController, ServersDat
 
 @immutable
 class PingResult {
-  const PingResult({required this.ms, required this.testing});
+  const PingResult({required this.ms, required this.testing, this.at});
 
   /// null = failed (or not tested yet while [testing]).
   final int? ms;
   final bool testing;
+
+  /// When the result was measured; kept with the saved result.
+  final DateTime? at;
 }
 
 final batchPingerProvider = Provider<BatchPinger>((ref) => createBatchPinger());
@@ -265,26 +256,67 @@ final canPingProvider = Provider<bool>((ref) {
   return batch || ref.watch(vpnBackendProvider).isSupported;
 });
 
-/// Real delay for every server: an HTTP request through that server's own
-/// config, 5 s timeout each.
+/// Real delay for servers: an HTTP request through each server's own
+/// config, 5 s timeout each. Never runs by itself: only "Test ping" (all
+/// servers) or a row's ping button (one server) start it. The last result of
+/// every server is saved and shown again on the next launch.
 ///
-/// All servers are tested at once through one Xray process, the way
+/// Tests go through one Xray process for all servers at once, the way
 /// v2rayNG and Happ do it. flutter_vless's own probe is the fallback: it
 /// starts a fresh Xray (and copies the geo files) per server and runs one at
 /// a time, which is why it was slow.
 class PingController extends Notifier<Map<String, PingResult>> {
   static const timeout = Duration(seconds: 5);
   static const _drain = Duration(seconds: 12);
+  static const _storeKey = 'ping.results';
+  static const _maxSaved = 500;
 
   bool _running = false;
+  final _single = <String>{};
 
   @override
-  Map<String, PingResult> build() => const {};
+  Map<String, PingResult> build() {
+    final raw = ref.watch(sharedPreferencesProvider).getString(_storeKey);
+    if (raw == null) return const {};
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return {
+        for (final e in map.entries)
+          if (e.value is Map)
+            e.key: PingResult(
+              ms: (e.value as Map)['ms'] as int?,
+              testing: false,
+              at: switch ((e.value as Map)['t']) {
+                final int t => DateTime.fromMillisecondsSinceEpoch(t),
+                _ => null,
+              },
+            ),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
 
+  /// True while "Test ping" for all servers is running.
   bool get isRunning => _running;
 
   void _set(String id, int? ms, {required bool testing}) {
-    state = {...state, id: PingResult(ms: ms, testing: testing)};
+    state = {
+      ...state,
+      id: PingResult(ms: ms, testing: testing, at: testing ? state[id]?.at : DateTime.now()),
+    };
+  }
+
+  Future<void> _save() async {
+    final done = state.entries.where((e) => !e.value.testing && e.value.at != null).toList()
+      ..sort((a, b) => b.value.at!.compareTo(a.value.at!));
+    await ref.read(sharedPreferencesProvider).setString(
+          _storeKey,
+          jsonEncode({
+            for (final e in done.take(_maxSaved))
+              e.key: {'ms': e.value.ms, 't': e.value.at!.millisecondsSinceEpoch},
+          }),
+        );
   }
 
   Future<int?> _pluginProbe(VpnBackend backend, VpnServer server) async {
@@ -296,10 +328,35 @@ class PingController extends Notifier<Map<String, PingResult>> {
     return ms;
   }
 
-  Future<void> testAll(List<VpnServer> servers, {bool onlyMissing = false}) async {
-    if (_running) return;
-    final targets = onlyMissing ? servers.where((s) => !state.containsKey(s.id)).toList() : [...servers];
-    if (targets.isEmpty) return;
+  /// Ping one server from its row.
+  Future<void> testOne(VpnServer server) async {
+    if (_single.contains(server.id) || (state[server.id]?.testing ?? false)) return;
+    final backend = ref.read(vpnBackendProvider);
+    final batch = ref.read(batchPingerProvider);
+    final batchReady = await batch.isAvailable();
+    if (!batchReady && !backend.isSupported) return;
+
+    _single.add(server.id);
+    _set(server.id, state[server.id]?.ms, testing: true);
+    try {
+      int? ms;
+      var ran = false;
+      if (batchReady) {
+        ran = await batch.run([server], timeout: timeout, onResult: (_, value) => ms = value);
+      }
+      if (!ran && backend.isSupported) ms = await _pluginProbe(backend, server);
+      _set(server.id, ms, testing: false);
+      await _save();
+    } finally {
+      _single.remove(server.id);
+      if (state[server.id]?.testing ?? false) _set(server.id, state[server.id]?.ms, testing: false);
+    }
+  }
+
+  /// Ping every server ("Test ping").
+  Future<void> testAll(List<VpnServer> servers) async {
+    if (_running || servers.isEmpty) return;
+    final targets = [...servers];
     final backend = ref.read(vpnBackendProvider);
     final batch = ref.read(batchPingerProvider);
     final batchReady = await batch.isAvailable();
@@ -308,23 +365,20 @@ class PingController extends Notifier<Map<String, PingResult>> {
 
     state = {
       ...state,
-      for (final s in targets) s.id: PingResult(ms: state[s.id]?.ms, testing: true),
+      for (final s in targets) s.id: PingResult(ms: state[s.id]?.ms, testing: true, at: state[s.id]?.at),
     };
 
     try {
       if (batchReady) {
         var answered = 0;
-        final results = <String, int?>{};
         final ran = await batch.run(targets, timeout: timeout, onResult: (id, ms) {
-          results[id] = ms;
           if (ms != null) answered++;
           _set(id, ms, testing: false);
         });
-        if (ran && answered > 0) return;
-        if (ran && !backend.isSupported) return;
+        if (ran && (answered > 0 || !backend.isSupported || targets.length == 1)) return;
         // Nothing answered: make sure the batch engine itself isn't the
         // problem before reporting every server as down.
-        if (ran && targets.length > 1) {
+        if (ran) {
           final check = await _pluginProbe(backend, targets.first);
           if (check == null) {
             _set(targets.first.id, null, testing: false);
@@ -345,8 +399,14 @@ class PingController extends Notifier<Map<String, PingResult>> {
       _running = false;
       // Never leave a spinner behind.
       if (state.values.any((p) => p.testing)) {
-        state = {for (final e in state.entries) e.key: PingResult(ms: e.value.ms, testing: false)};
+        state = {
+          for (final e in state.entries)
+            e.key: e.value.testing && !_single.contains(e.key)
+                ? PingResult(ms: e.value.ms, testing: false, at: e.value.at)
+                : e.value,
+        };
       }
+      await _save();
     }
   }
 }

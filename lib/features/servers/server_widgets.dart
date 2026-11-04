@@ -64,17 +64,38 @@ class FlagTile extends StatelessWidget {
 }
 
 /// Ping pill: green under 150 ms, amber under 300 ms, red above.
+/// With [onTap] it pings that one server: tap the pill to re-test, or the
+/// speed icon when it has never been tested.
 class PingBadge extends StatelessWidget {
-  const PingBadge({super.key, required this.result});
+  const PingBadge({super.key, required this.result, this.onTap});
 
   final PingResult? result;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final badge = _badge(context);
+    final tap = onTap;
+    if (tap == null) return badge ?? const SizedBox.shrink();
+    final busy = result?.testing ?? false;
+    return Tooltip(
+      message: S.of(context).testPing,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: busy ? null : tap,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: badge ?? Icon(Icons.speed_rounded, size: 19, color: context.tokens.textMuted),
+        ),
+      ),
+    );
+  }
+
+  Widget? _badge(BuildContext context) {
     final t = context.tokens;
     final s = S.of(context);
     final r = result;
-    if (r == null) return const SizedBox.shrink();
+    if (r == null) return null;
 
     if (r.ms == null && r.testing) {
       return SizedBox.square(
@@ -122,13 +143,13 @@ class TagChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: t.surfaceHigh,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: t.border),
       ),
-      child: Text(label, style: AppType.caption.copyWith(color: t.textSecondary, fontWeight: FontWeight.w600)),
+      child: Text(label, style: AppType.caption.copyWith(color: t.textSecondary, fontWeight: FontWeight.w600, fontSize: 10)),
     );
   }
 }

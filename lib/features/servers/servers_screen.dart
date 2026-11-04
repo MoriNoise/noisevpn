@@ -66,6 +66,7 @@ class ServersScreen extends ConsumerWidget {
     final pinging = pings.values.any((p) => p.testing);
     final canPing = ref.watch(canPingProvider);
     final controller = ref.read(serversControllerProvider.notifier);
+    final ping = ref.read(pingControllerProvider.notifier);
 
     final Widget body;
     if (data.isEmpty) {
@@ -109,6 +110,7 @@ class ServersScreen extends ConsumerWidget {
                 subtitle: server.transport.toUpperCase(),
                 tags: [if (server.tag != null) server.tag!],
                 ping: pings[server.id],
+                onPing: canPing ? () => ping.testOne(server) : null,
                 selected: selection == SelectionController.keyFor(server),
                 onTap: () => _select(context, ref, SelectionController.keyFor(server)),
                 onRemove: source.isLocal ? () => controller.removeLocalServer(server) : null,
@@ -129,9 +131,7 @@ class ServersScreen extends ConsumerWidget {
           icon: Icons.speed_rounded,
           label: s.testPing,
           busy: pinging,
-          onPressed: servers.isEmpty || !canPing
-              ? null
-              : () => ref.read(pingControllerProvider.notifier).testAll(servers),
+          onPressed: servers.isEmpty || !canPing ? null : () => ping.testAll(servers),
         ),
         HeaderAction(
           icon: Icons.refresh_rounded,
@@ -166,7 +166,7 @@ class _ServerGrid extends StatelessWidget {
           return Column(
             children: [
               for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(height: 10),
+                if (i > 0) const SizedBox(height: 6),
                 children[i],
               ],
             ],
@@ -175,12 +175,12 @@ class _ServerGrid extends StatelessWidget {
         return Column(
           children: [
             for (var i = 0; i < children.length; i += 2) ...[
-              if (i > 0) const SizedBox(height: 12),
+              if (i > 0) const SizedBox(height: 8),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: children[i]),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(child: i + 1 < children.length ? children[i + 1] : const SizedBox.shrink()),
                 ],
               ),
@@ -224,10 +224,10 @@ class _SourceHeader extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 22, 0, 10),
+      padding: const EdgeInsets.fromLTRB(4, 16, 0, 6),
       child: Row(
         children: [
-          Icon(source.isLocal ? Icons.description_outlined : Icons.link_rounded, size: 18, color: t.accent),
+          Icon(source.isLocal ? Icons.description_outlined : Icons.link_rounded, size: 16, color: t.accent),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -237,9 +237,9 @@ class _SourceHeader extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppType.title.copyWith(color: t.textPrimary, fontSize: 15),
+                  style: AppType.label.copyWith(color: t.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w700),
                 ),
-                Text(detail, style: AppType.caption.copyWith(color: detailColor)),
+                Text(detail, style: AppType.caption.copyWith(color: detailColor, fontSize: 10.5)),
               ],
             ),
           ),
@@ -255,12 +255,14 @@ class _SourceHeader extends StatelessWidget {
                 : IconButton(
                     tooltip: s.refresh,
                     onPressed: onRefresh,
-                    icon: Icon(Icons.refresh_rounded, size: 20, color: t.textMuted),
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.refresh_rounded, size: 18, color: t.textMuted),
                   ),
           IconButton(
             tooltip: s.remove,
             onPressed: onRemove,
-            icon: Icon(Icons.delete_outline_rounded, size: 20, color: t.textMuted),
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.delete_outline_rounded, size: 18, color: t.textMuted),
           ),
         ],
       ),
@@ -280,6 +282,7 @@ class _LocationTile extends StatelessWidget {
     required this.onTap,
     this.onRemove,
     this.removeLabel,
+    this.onPing,
   });
 
   final String? code;
@@ -295,16 +298,19 @@ class _LocationTile extends StatelessWidget {
   final VoidCallback? onRemove;
   final String? removeLabel;
 
+  /// Pings just this server.
+  final VoidCallback? onPing;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final radius = BorderRadius.circular(16);
+    final radius = BorderRadius.circular(14);
 
     return Semantics(
       button: true,
       selected: selected,
       child: GlassSurface(
-        radius: 16,
+        radius: 14,
         borderColor: selected ? t.accentBorder : null,
         tint: selected ? t.accentFaint : null,
         child: Material(
@@ -313,11 +319,11 @@ class _LocationTile extends StatelessWidget {
             borderRadius: radius,
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Row(
                 children: [
-                  auto ? const FlagTile.auto() : FlagTile(code: code),
-                  const SizedBox(width: 12),
+                  auto ? const FlagTile.auto(size: 34) : FlagTile(code: code, size: 34),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,17 +332,17 @@ class _LocationTile extends StatelessWidget {
                           title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppType.title.copyWith(color: t.textPrimary, fontSize: 15),
+                          style: AppType.label.copyWith(color: t.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w700),
                         ),
                         if (subtitle != null || tags.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               if (subtitle != null)
-                                Text(subtitle!, style: AppType.caption.copyWith(color: t.textMuted)),
+                                Text(subtitle!, style: AppType.caption.copyWith(color: t.textMuted, fontSize: 10.5)),
                               for (final tag in tags) TagChip(label: tag),
                             ],
                           ),
@@ -345,26 +351,26 @@ class _LocationTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  PingBadge(result: ping),
+                  PingBadge(result: ping, onTap: onPing),
                   if (onRemove != null)
                     IconButton(
                       tooltip: removeLabel,
                       onPressed: onRemove,
                       visualDensity: VisualDensity.compact,
-                      icon: Icon(Icons.delete_outline_rounded, size: 19, color: t.textMuted),
+                      icon: Icon(Icons.delete_outline_rounded, size: 17, color: t.textMuted),
                     )
                   else
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    width: 22,
-                    height: 22,
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: selected ? t.accent : Colors.transparent,
                       border: Border.all(color: selected ? t.accent : t.borderStrong, width: 1.5),
                     ),
-                    child: selected ? Icon(Icons.check_rounded, size: 14, color: t.onAccent) : null,
+                    child: selected ? Icon(Icons.check_rounded, size: 12, color: t.onAccent) : null,
                   ),
                 ],
               ),

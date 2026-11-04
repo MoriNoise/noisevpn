@@ -31,7 +31,10 @@ The owner writes in casual Persian. The UI ships in Persian and English.
   - `packaging { jniLibs { useLegacyPackaging = true } }`
 - **`android/app/proguard-rules.pro` exists.** It keeps `com.github.tfox.flutter_vless.**`, `dev.tfox.fluttervless.**` and Gson, because the plugin uses Gson and ships no consumer rules.
 - **`AndroidManifest.xml`:** INTERNET permission, label "Noise VPN".
-- **`MainActivity.kt`:** `com.noise.vpn.noisevpn`, MethodChannel `noisevpn/native` → `nativeLibraryDir`. Needed by the parallel ping.
+- **`MainActivity.kt`:** `com.noise.vpn.noisevpn`, MethodChannel `noisevpn/native`:
+  - `nativeLibraryDir`, for the parallel ping,
+  - `installedApps` (launchable apps, `{package, label}`, read off the UI thread), for per-app proxy.
+- **`AndroidManifest.xml` has a `<queries>` MAIN/LAUNCHER intent** so the app list works on Android 11+.
 - **Release build works** and has been installed on a phone:
   ```bash
   flutter build apk --release --split-per-abi
@@ -111,13 +114,26 @@ features/
     countries.dart             ISO → en/fa names, flagEmoji()
     server_widgets.dart        FlagTile (shows the code instead of emoji on Windows),
                                PingBadge, TagChip, bestPing()
-  settings/                    Appearance, Language, Account (hidden while login is off)
+  settings/                    Three tabs:
+                               Appearance: mode, accent, glass.
+                               Connection: mode TUN / proxy-only + SOCKS port; per-app
+                               proxy (Android: off / skip selected / only selected, app
+                               picker page); Bypass LAN; DNS through tunnel. Shows a
+                               "Reconnect now" notice while connected.
+                               General: language, about, account (only when
+                               requireLogin; sign out is hidden for now).
   vpn/
     vpn_backend.dart           VpnBackend interface, VpnPhase, VpnStatusEvent, provider
     flutter_vless_backend.dart init (Apple ids), requestPermission, startVless with
                                AndroidDnsPolicy.proxy, stopVless, getServerDelay
     unsupported_vpn_backend    Linux/web: isSupported=false, no delay, no fake anything
-    vpn_controller.dart        connect/disconnect/toggle/reconnect, failure enum, stop guard
+    vpn_controller.dart        connect/disconnect/toggle/reconnect/restart, failure enum,
+                               stop guard; _options() turns VpnSettings into
+                               VpnStartOptions. "Only selected" = blockedApps of every
+                               other launchable app, because flutter_vless only takes an
+                               exclude list.
+    vpn_settings.dart          VpnSettings + controller (persisted)
+    installed_apps.dart        installedAppsProvider (Android channel)
     batch_ping*.dart           parallel real ping (see below); stub for web
 ```
 
@@ -129,13 +145,26 @@ features/
 | `sources.<id>.body` / `.userinfo` / `.time` | Cached subscription response per source |
 | `sources.local` | String list of pasted share links (or raw JSON) |
 | `servers.selection` | `auto` or `server:<serverId>` |
+| `vpn.settings` | Connection settings JSON: proxyOnly, socksPort, perAppMode, selectedApps, bypassLan, dnsThroughTunnel |
+| `vpn.lastServerId` | Server of the last started session (restored when the app reopens on a running VPN) |
+| `ping.results` | Last ping per server: `{id: {ms, t}}`, max 500, shown again on launch |
 | `appearance.mode` / `appearance.accentId` / `appearance.glass` | Look settings |
 | `app.locale` | `fa` or `en` |
 | `auth.session.username` | Mock login session |
 
-The subscription request sends `User-Agent: NoiseVPN/<version>`. A failed or empty refresh keeps the cached servers and marks the source `failed`. The Home plan card uses the first source that reports usage.
+The subscription request sends `User-Agent: NoiseVPN/<version>`. A failed or empty refresh keeps the cached servers and marks the source `failed`.
+
+**Plan card on Home:** it shows the subscription of the server in use: the connected one, otherwise the selected one (or the fastest in auto mode). With several subscriptions it follows the selection and names the subscription. It's hidden for local configs and for subscriptions without a `subscription-userinfo` header.
+
+**Home layout on phones (and narrow tablets):** fixed, no scrolling. In order: title, optional notice, connect panel taking the remaining height (the button sizes itself to it), location card, a one-row stats strip, a compact plan card. Below 540 px of height (620 with the plan card) it falls back to a scroll view. Desktop keeps the two-column layout.
 
 ## Ping
+
+Ping **never runs by itself**: not on launch, and not after adding or refreshing a source. The owner asked for this. Two things start it:
+- **Test ping** in the Servers header: all servers.
+- **A row's ping badge** (`PingController.testOne`): just that server. The badge shows a speed icon when the server was never tested. The Home location card's badge works the same way.
+
+The last result of every server is saved (`ping.results`) and shown again on the next launch.
 
 ### Main path: parallel, like v2rayNG
 
@@ -176,6 +205,38 @@ The fallback runs when the batch engine can't start. If every batch probe failed
 7. Parallel real ping.
 8. Performance fixes: no blur, isolated repaints, narrowed rebuilds.
 9. Android release build fixes.
+
+## Keeping the connection state honest
+
+On Android, flutter_vless runs `XrayVPNService` in a **separate process** (`:RunSoLibXrayDaemon`) and reports state only through broadcasts. Those can be missed: the process can die, the receiver may be unregistered, or Android may queue broadcasts for background apps. That led to "app says connected, VPN is off". So `VpnController`:
+- calls `ensureInitialized()` at launch (the status listener used to start only on the first Connect),
+- calls `verify()` on launch, on app resume (`AppLifecycleListener`), and when no status has arrived for 6 s while not disconnected,
+- `verify()` asks `backend.isSessionAlive()`. On Android that's the `vpnServiceRunning` channel method (`ActivityManager.getRunningServices`); other platforms return null, meaning "can't tell, trust the stream",
+- if the service is gone, the app shows disconnected. If it's running while the app thinks it's off, the app shows connected with the last server (`vpn.lastServerId`),
+- skips checks for 10 s after the user's own connect or disconnect.
+
+## VPN options flutter_vless 1.1.6 exposes (all wired in Settings → Connection)
+
+- `startVless(proxyOnly)`: no VPN, a local SOCKS5 on the config's socks inbound. The default port is 8142; we rewrite the inbound port to the chosen one.
+- `blockedApps`: Android only, excluded from the tunnel.
+- `bypassSubnets`: we pass the LAN ranges when Bypass LAN is on.
+- `androidDnsPolicy`: `proxy` when "DNS through the tunnel" is on, `config` otherwise and in proxy mode.
+- **Windows** (from `doc/platform/windows.md` in 1.1.6):
+  - proxy-only sets `socks=127.0.0.1:<port>` as the Windows system proxy and restores it on stop,
+  - VPN mode is IPv4 TUN (Wintun) and needs administrator,
+  - DNS always goes through the proxy,
+  - IPv4 `bypassSubnets` become direct rules in Xray (so Bypass LAN is shown on Windows),
+  - `blockedApps` and the DNS policy are Android-only,
+  - runtime files must sit in `xray/` next to the exe (PATH isn't searched),
+  - after a crash the WFP block stays until the app is reopened as admin and stopped.
+- Not exposed by the package: routing rules (for example "bypass Iranian sites") would mean editing the Xray config ourselves, and need geo data that may not include the right codes.
+
+## Answered questions
+
+- **WireGuard:** decided against it. The handshake gets detected and blocked on filtered networks.
+  Background: Xray core runs WireGuard outbounds, and flutter_vless 1.1.6 already builds them, but only from Clash or sing-box subscriptions (`subscription.dart`). It has no parser for `wireguard://` links or `.conf` files. Adding our own parser that produces the same `{"protocol": "wireguard", ...}` outbound is possible.
+  - Caveat: it's Xray's userspace WireGuard behind tun2socks, slower than the official app.
+  - Caveat: the WireGuard handshake is easy for DPI to detect and block on filtered networks.
 
 ## Next steps (owner's direction, roughly in order)
 

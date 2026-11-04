@@ -19,9 +19,16 @@ class _TestBackend implements VpnBackend {
   @override
   Future<bool> requestPermission() async => true;
   @override
-  Future<void> start({required String remark, required String config, required String disconnectLabel}) async {}
+  Future<void> start({
+    required String remark,
+    required String config,
+    required String disconnectLabel,
+    VpnStartOptions options = const VpnStartOptions(),
+  }) async {}
   @override
   Future<void> stop() async {}
+  @override
+  Future<bool?> isSessionAlive() async => false;
   @override
   Future<int?> delay(VpnServer server) async => null;
   @override

@@ -142,6 +142,40 @@ abstract class S {
   String get signOut;
   String get changeTheme;
   String version(String v);
+
+  // Settings sections
+  String get tabConnection;
+  String get tabGeneral;
+  String get connectionMode;
+  String get connectionModeHint;
+  String get modeTun;
+  String get modeTunHint;
+  String get modeProxy;
+  String modeProxyHint(int port);
+  String modeProxyHintWindows(int port);
+  String get modeTunHintWindows;
+  String get socksPort;
+  String get errPort;
+  String get perApp;
+  String get perAppHint;
+  String get perAppOff;
+  String get perAppBypass;
+  String get perAppOnly;
+  String chooseApps(int count);
+  String get perAppOnlyNote;
+  String get perAppProxyNote;
+  String get searchApps;
+  String get appsFailed;
+  String get noAppsFound;
+  String get bypassLan;
+  String get bypassLanHint;
+  String get dnsTunnel;
+  String get dnsTunnelHint;
+  String get applyOnReconnect;
+  String get reconnectNow;
+  String get done;
+  String get about;
+  String get engine;
 }
 
 class _En extends S {
@@ -263,6 +297,39 @@ class _En extends S {
   @override String get signOut => 'Sign out';
   @override String get changeTheme => 'Change theme';
   @override String version(String v) => 'Version $v';
+
+  @override String get tabConnection => 'Connection';
+  @override String get tabGeneral => 'General';
+  @override String get connectionMode => 'Connection mode';
+  @override String get connectionModeHint => 'How the app sends traffic through the server';
+  @override String get modeTun => 'VPN (TUN)';
+  @override String get modeTunHint => 'Every app goes through the tunnel.';
+  @override String get modeProxy => 'Proxy only';
+  @override String modeProxyHint(int port) => 'No VPN. A SOCKS5 proxy runs on 127.0.0.1:$port for the apps you set it in.';
+  @override String modeProxyHintWindows(int port) => 'No VPN. 127.0.0.1:$port is set as the Windows system proxy; apps that ignore system proxy settings connect directly.';
+  @override String get modeTunHintWindows => 'Every app goes through the tunnel (IPv4). Needs the app to run as administrator.';
+  @override String get socksPort => 'Local SOCKS5 port';
+  @override String get errPort => 'Use a port between 1024 and 65535.';
+  @override String get perApp => 'Per-app proxy';
+  @override String get perAppHint => 'Choose which apps use the tunnel';
+  @override String get perAppOff => 'All apps';
+  @override String get perAppBypass => 'Skip selected';
+  @override String get perAppOnly => 'Only selected';
+  @override String chooseApps(int count) => count == 0 ? 'Choose apps' : 'Choose apps ($count selected)';
+  @override String get perAppOnlyNote => 'System services without a launcher icon still use the tunnel.';
+  @override String get perAppProxyNote => 'Per-app proxy works in VPN mode.';
+  @override String get searchApps => 'Search apps';
+  @override String get appsFailed => "Couldn't read the installed apps.";
+  @override String get noAppsFound => 'No apps match.';
+  @override String get bypassLan => 'Bypass LAN';
+  @override String get bypassLanHint => 'Local network addresses (router, printers) stay outside the tunnel.';
+  @override String get dnsTunnel => 'DNS through the tunnel';
+  @override String get dnsTunnelHint => 'Stops DNS queries leaking to your local network.';
+  @override String get applyOnReconnect => 'Changes apply the next time you connect.';
+  @override String get reconnectNow => 'Reconnect now';
+  @override String get done => 'Done';
+  @override String get about => 'About';
+  @override String get engine => 'Engine';
 }
 
 class _Fa extends S {
@@ -384,4 +451,37 @@ class _Fa extends S {
   @override String get signOut => rtl('خروج از حساب');
   @override String get changeTheme => rtl('تغییر تم');
   @override String version(String v) => rtl('نسخه ${n(v)}');
+
+  @override String get tabConnection => rtl('اتصال');
+  @override String get tabGeneral => rtl('عمومی');
+  @override String get connectionMode => rtl('حالت اتصال');
+  @override String get connectionModeHint => rtl('اپ ترافیک رو چطوری از سرور رد کنه');
+  @override String get modeTun => 'VPN (TUN)';
+  @override String get modeTunHint => rtl('همه‌ی اپ‌ها از تونل رد می‌شن.');
+  @override String get modeProxy => rtl('فقط پروکسی');
+  @override String modeProxyHint(int port) => rtl('VPN روشن نمی‌شه. یه پروکسی SOCKS5 روی 127.0.0.1:$port بالا میاد که توی هر اپی بخوای تنظیمش کنی.');
+  @override String modeProxyHintWindows(int port) => rtl('VPN روشن نمی‌شه. 127.0.0.1:$port به‌عنوان پروکسی سیستم ویندوز تنظیم می‌شه؛ اپ‌هایی که پروکسی سیستم رو نادیده می‌گیرن مستقیم وصل می‌شن.');
+  @override String get modeTunHintWindows => rtl('همه‌ی اپ‌ها از تونل رد می‌شن (IPv4). اپ باید با دسترسی Administrator اجرا بشه.');
+  @override String get socksPort => rtl('پورت SOCKS5 محلی');
+  @override String get errPort => rtl('یه پورت بین ۱۰۲۴ تا ۶۵۵۳۵ بذار.');
+  @override String get perApp => rtl('پروکسی برای هر اپ');
+  @override String get perAppHint => rtl('انتخاب کن کدوم اپ‌ها از تونل رد بشن');
+  @override String get perAppOff => rtl('همه‌ی اپ‌ها');
+  @override String get perAppBypass => rtl('به‌جز انتخابی‌ها');
+  @override String get perAppOnly => rtl('فقط انتخابی‌ها');
+  @override String chooseApps(int count) => rtl(count == 0 ? 'انتخاب اپ‌ها' : 'انتخاب اپ‌ها (${n('$count')} تا)');
+  @override String get perAppOnlyNote => rtl('سرویس‌های سیستمی که آیکون ندارن همچنان از تونل رد می‌شن.');
+  @override String get perAppProxyNote => rtl('پروکسی برای هر اپ توی حالت VPN کار می‌کنه.');
+  @override String get searchApps => rtl('جستجوی اپ');
+  @override String get appsFailed => rtl('لیست اپ‌ها خونده نشد.');
+  @override String get noAppsFound => rtl('اپی پیدا نشد.');
+  @override String get bypassLan => rtl('دور زدن شبکه‌ی محلی');
+  @override String get bypassLanHint => rtl('آدرس‌های شبکه‌ی محلی (مودم، پرینتر) بیرون از تونل می‌مونن.');
+  @override String get dnsTunnel => rtl('DNS از داخل تونل');
+  @override String get dnsTunnelHint => rtl('جلوی نشت درخواست‌های DNS به شبکه‌ی محلی رو می‌گیره.');
+  @override String get applyOnReconnect => rtl('تغییرات از اتصال بعدی اعمال می‌شن.');
+  @override String get reconnectNow => rtl('الان دوباره وصل شو');
+  @override String get done => rtl('تأیید');
+  @override String get about => rtl('درباره');
+  @override String get engine => rtl('موتور');
 }

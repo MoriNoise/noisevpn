@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 
 import '../../core/config/app_config.dart';
@@ -65,18 +67,48 @@ class FlutterVlessBackend implements VpnBackend {
     required String remark,
     required String config,
     required String disconnectLabel,
+    VpnStartOptions options = const VpnStartOptions(),
   }) {
     return _vless.startVless(
       remark: remark,
-      config: config,
-      // Send system DNS through the tunnel instead of the local network.
-      androidDnsPolicy: AndroidDnsPolicy.proxy,
+      config: options.proxyOnly ? _withSocksPort(config, options.socksPort) : config,
+      proxyOnly: options.proxyOnly,
+      blockedApps: options.proxyOnly || options.blockedApps.isEmpty ? null : options.blockedApps,
+      bypassSubnets: options.proxyOnly || options.bypassSubnets.isEmpty ? null : options.bypassSubnets,
+      // proxy = system DNS goes through the tunnel instead of the local network.
+      androidDnsPolicy: !options.proxyOnly && options.dnsThroughTunnel ? AndroidDnsPolicy.proxy : AndroidDnsPolicy.config,
       notificationDisconnectButtonName: disconnectLabel,
     );
   }
 
+  /// Proxy-only mode serves the config's SOCKS inbound to other apps, so
+  /// that inbound gets the port chosen in Settings.
+  static String _withSocksPort(String config, int port) {
+    try {
+      final json = jsonDecode(config) as Map<String, dynamic>;
+      for (final inbound in (json['inbounds'] as List? ?? const [])) {
+        if (inbound is Map && inbound['protocol'] == 'socks') inbound['port'] = port;
+      }
+      return jsonEncode(json);
+    } catch (_) {
+      return config;
+    }
+  }
+
   @override
   Future<void> stop() => _vless.stopVless();
+
+  static const _native = MethodChannel('noisevpn/native');
+
+  @override
+  Future<bool?> isSessionAlive() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return await _native.invokeMethod<bool>('vpnServiceRunning');
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   /// Real delay through Xray with the server's own config.
