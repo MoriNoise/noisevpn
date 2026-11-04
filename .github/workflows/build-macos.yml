@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+env:
+  FLUTTER_VERSION: 3.35.7
+  MACOS_DEPLOYMENT_TARGET: "13.0"
+
 jobs:
   create_release:
     runs-on: ubuntu-latest
@@ -36,14 +40,14 @@ jobs:
           path: |
             ~/.pub-cache
             /opt/hostedtoolcache/flutter
-          key: flutter-3.35.1-${{ runner.os }}
+          key: flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
           restore-keys: |
-            flutter-3.35.1-${{ runner.os }}
+            flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.35.1
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
@@ -73,6 +77,42 @@ jobs:
           CODE_SIGNING_ALLOWED = NO;\
           CODE_SIGN_ENTITLEMENTS = "";\
           ' "$PBXPROJ"
+
+      - name: Force macOS deployment target
+        run: |
+          PODFILE="macos/Podfile"
+          PBXPROJ="macos/Runner.xcodeproj/project.pbxproj"
+          TARGET="$MACOS_DEPLOYMENT_TARGET"
+
+          if [ ! -f "$PODFILE" ]; then
+            echo "::error::macos/Podfile is missing from the repo. Commit it, otherwise Flutter creates a default one with macOS 10.15."
+            exit 1
+          fi
+
+          # Podfile platform line
+          sed -i '' "s/^[# ]*platform :osx, '.*'/platform :osx, '$TARGET'/" "$PODFILE"
+          # Pods post_install override (if present)
+          sed -i '' "s/config.build_settings\['MACOSX_DEPLOYMENT_TARGET'\] = '.*'/config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '$TARGET'/" "$PODFILE"
+          # Xcode project
+          sed -i '' "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]*;/MACOSX_DEPLOYMENT_TARGET = $TARGET;/g" "$PBXPROJ"
+
+          # Start pods from scratch
+          rm -f macos/Podfile.lock
+          rm -rf macos/Pods
+
+          echo "===== Podfile ====="
+          grep -n "platform :osx\|MACOSX_DEPLOYMENT_TARGET" "$PODFILE"
+          echo "===== Xcode project ====="
+          grep -n "MACOSX_DEPLOYMENT_TARGET" "$PBXPROJ"
+
+          if ! grep -q "^platform :osx, '$TARGET'" "$PODFILE"; then
+            echo "::error::Podfile platform is not $TARGET"
+            exit 1
+          fi
+          if grep "MACOSX_DEPLOYMENT_TARGET = " "$PBXPROJ" | grep -vq "= $TARGET;"; then
+            echo "::error::Some MACOSX_DEPLOYMENT_TARGET values in project.pbxproj are not $TARGET"
+            exit 1
+          fi
 
       - name: Install Dependencies
         run: flutter pub get
@@ -107,14 +147,14 @@ jobs:
           path: |
             ~\AppData\Local\Pub\Cache
             C:\hostedtoolcache\windows\flutter
-          key: flutter-3.35.1-${{ runner.os }}
+          key: flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
           restore-keys: |
-            flutter-3.35.1-${{ runner.os }}
+            flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.35.1
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
@@ -168,7 +208,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.35.1
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
