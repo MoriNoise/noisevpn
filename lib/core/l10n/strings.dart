@@ -83,6 +83,7 @@ abstract class S {
   String notAvailableOn(String platform);
   String get errPermission;
   String get errConnect;
+  String get errTimeout;
   String get errNoServers;
 
   // Servers
@@ -240,6 +241,7 @@ class _En extends S {
   @override String notAvailableOn(String platform) => 'Not available on $platform';
   @override String get errPermission => 'VPN permission was not granted. Allow it to connect.';
   @override String get errConnect => "Couldn't start the connection. Try another location.";
+  @override String get errTimeout => "The server didn't answer in time. Try another location or check your internet.";
   @override String get errNoServers => 'No servers yet. Add a subscription or configs in Servers.';
 
   @override String get refresh => 'Refresh';
@@ -394,6 +396,7 @@ class _Fa extends S {
   @override String notAvailableOn(String platform) => rtl('روی $platform در دسترس نیست');
   @override String get errPermission => rtl('اجازه‌ی VPN داده نشد. برای اتصال اجازه بده.');
   @override String get errConnect => rtl('اتصال برقرار نشد. یه لوکیشن دیگه رو امتحان کن.');
+  @override String get errTimeout => rtl('سرور به‌موقع جواب نداد. یه لوکیشن دیگه رو امتحان کن یا اینترنتت رو چک کن.');
   @override String get errNoServers => rtl('هنوز سروری نیست. توی سرورها اشتراک یا کانفیگ اضافه کن.');
 
   @override String get refresh => rtl('به‌روزرسانی');

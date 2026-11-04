@@ -49,10 +49,13 @@ class FlutterVlessBackend implements VpnBackend {
 
   Future<void> _initialize() async {
     try {
-      await _vless.initializeVless(
-        providerBundleIdentifier: AppConfig.appleBundleId,
-        groupIdentifier: AppConfig.appleGroupId,
-      );
+      await _vless
+          .initializeVless(
+            providerBundleIdentifier: AppConfig.appleBundleId,
+            groupIdentifier: AppConfig.appleGroupId,
+          )
+          // A hung init would otherwise be cached and block every retry.
+          .timeout(const Duration(seconds: 15));
     } catch (_) {
       _init = null; // allow a retry on the next attempt
       rethrow;

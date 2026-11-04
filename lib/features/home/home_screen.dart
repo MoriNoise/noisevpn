@@ -173,6 +173,7 @@ class _ConnectPanel extends ConsumerWidget {
       VpnFailure.noServers => s.errNoServers,
       VpnFailure.permissionDenied => s.errPermission,
       VpnFailure.startFailed => s.errConnect,
+      VpnFailure.timeout => s.errTimeout,
       null => null,
     };
     final action = vpn.isActive ? s.disconnect : s.connect;
