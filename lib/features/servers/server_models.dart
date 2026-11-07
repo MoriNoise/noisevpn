@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 
+import 'countries.dart';
 import 'wireguard.dart';
 
 /// One connectable profile from the subscription.
@@ -296,6 +297,8 @@ class RemarkInfo {
       if (code == null && words.first.length == 2) code = words.first;
       words = words.sublist(1);
     }
+    // No flag and no leading code: look for a country name or code anywhere.
+    code ??= detectCountry(raw);
     return RemarkInfo(countryCode: code, tag: words.isEmpty ? null : words.join(' '));
   }
 }

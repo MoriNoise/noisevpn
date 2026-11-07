@@ -107,9 +107,8 @@ class ServersScreen extends ConsumerWidget {
             for (final server in source.servers)
               _LocationTile(
                 code: server.countryCode,
-                title: countryName(s, server.countryCode),
-                subtitle: server.transport.toUpperCase(),
-                tags: [if (server.tag != null) server.tag!],
+                title: serverTitle(s, server),
+                subtitle: serverSubtitle(s, server),
                 ping: pings[server.id],
                 onPing: canPing ? () => ping.testOne(server) : null,
                 selected: selection == SelectionController.keyFor(server),
@@ -294,7 +293,6 @@ class _LocationTile extends StatelessWidget {
     this.auto = false,
     required this.title,
     this.subtitle,
-    this.tags = const [],
     required this.ping,
     required this.selected,
     required this.onTap,
@@ -307,7 +305,6 @@ class _LocationTile extends StatelessWidget {
   final bool auto;
   final String title;
   final String? subtitle;
-  final List<String> tags;
   final PingResult? ping;
   final bool selected;
   final VoidCallback onTap;
@@ -352,17 +349,13 @@ class _LocationTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppType.label.copyWith(color: t.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w700),
                         ),
-                        if (subtitle != null || tags.isNotEmpty) ...[
+                        if (subtitle != null) ...[
                           const SizedBox(height: 2),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              if (subtitle != null)
-                                Text(subtitle!, style: AppType.caption.copyWith(color: t.textMuted, fontSize: 10.5)),
-                              for (final tag in tags) TagChip(label: tag),
-                            ],
+                          Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.caption.copyWith(color: t.textMuted, fontSize: 10.5),
                           ),
                         ],
                       ],

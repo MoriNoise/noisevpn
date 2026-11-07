@@ -256,6 +256,10 @@ abstract class S {
   String get tunEngineFastHint;
   String get tunEngineStrictHint;
   String get killSwitchFastNote;
+  // Desktop Home server panel
+  String get searchLocations;
+  String get noMatches;
+  String get manageServers;
 }
 
 class _En extends S {
@@ -495,6 +499,9 @@ class _En extends S {
   @override String get tunEngineFastHint => 'Connects in a few seconds. No kill switch: if the VPN process stops, traffic goes out directly.';
   @override String get tunEngineStrictHint => 'If the VPN drops, all traffic is blocked until it reconnects or you disconnect. Connecting takes about 10 seconds.';
   @override String get killSwitchFastNote => 'The sing-box TUN engine has no kill switch: if the VPN process stops, traffic goes out directly. Choose flutter_vless as the TUN engine in Settings → Connection to block it instead.';
+  @override String get searchLocations => 'Search locations';
+  @override String get noMatches => 'No locations match your search.';
+  @override String get manageServers => 'Add or edit subscriptions';
 }
 
 class _Fa extends S {
@@ -733,4 +740,7 @@ class _Fa extends S {
   @override String get tunEngineFastHint => rtl('چند ثانیه‌ای وصل می‌شه. کیل‌سوییچ نداره: اگه پروسه‌ی VPN بسته بشه، ترافیک مستقیم می‌ره.');
   @override String get tunEngineStrictHint => rtl('اگه VPN قطع بشه، همه‌ی ترافیک بسته می‌مونه تا دوباره وصل بشه یا خودت قطع کنی. اتصال حدود ۱۰ ثانیه طول می‌کشه.');
   @override String get killSwitchFastNote => rtl('موتور TUN با sing-box کیل‌سوییچ نداره: اگه پروسه‌ی VPN بسته بشه، ترافیک مستقیم می‌ره. برای بستنش، توی تنظیمات ← اتصال موتور TUN رو flutter_vless بذار.');
+  @override String get searchLocations => rtl('جستجوی لوکیشن');
+  @override String get noMatches => rtl('لوکیشنی با این جستجو پیدا نشد.');
+  @override String get manageServers => rtl('افزودن یا ویرایش اشتراک‌ها');
 }

@@ -19,6 +19,7 @@ import '../shell/shell_tab.dart';
 import '../vpn/vpn_backend.dart';
 import '../vpn/vpn_controller.dart';
 import 'connect_button.dart';
+import 'server_panel.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -138,6 +139,50 @@ class HomeScreen extends ConsumerWidget {
       builder: (context, c) {
         // A very short window scrolls rather than squeezing the hero.
         final fits = c.maxHeight >= 640;
+        // Wide windows: locations beside the connect card, so switching
+        // server doesn't mean leaving Home.
+        if (fits && c.maxWidth >= 1000) {
+          return PageFrame(
+            title: s.navHome,
+            subtitle: s.homeSubtitle,
+            expand: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (notice != null) ...[notice, const SizedBox(height: 16)],
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 11,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: _DesktopHero(
+                                  supported: supported,
+                                  vertical: true,
+                                  location: _CurrentLocation(server: server, auto: auto),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(height: 112, child: RepaintBoundary(child: _StatsBar(pingMs: pingMs))),
+                            if (plan != null) ...[const SizedBox(height: 16), SizedBox(height: 112, child: plan)],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(flex: 8, child: RepaintBoundary(child: ServerPanel())),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return PageFrame(
           title: s.navHome,
           subtitle: s.homeSubtitle,
@@ -186,10 +231,13 @@ String? _failureOf(S s, VpnFailure? failure) => switch (failure) {
 /// Desktop Home's main card: the button on one side; status, timer, errors
 /// and the location on the other.
 class _DesktopHero extends ConsumerWidget {
-  const _DesktopHero({required this.supported, required this.location});
+  const _DesktopHero({required this.supported, required this.location, this.vertical = false});
 
   final bool supported;
   final Widget location;
+
+  /// Button above the status (the narrower column beside the server panel).
+  final bool vertical;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,6 +253,52 @@ class _DesktopHero extends ConsumerWidget {
       tint: vpn.phase == VpnPhase.connected ? t.success.withValues(alpha: 0.04) : null,
       child: LayoutBuilder(
         builder: (context, c) {
+          if (vertical) {
+            final ring = math.min(c.maxHeight - 130, c.maxWidth * 0.62).clamp(130.0, 280.0).toDouble();
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: c.maxHeight),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ConnectButton(
+                      phase: vpn.phase,
+                      enabled: supported,
+                      size: ring,
+                      semanticLabel: vpn.isActive ? s.disconnect : s.connect,
+                      onPressed: () => ref.read(vpnControllerProvider.notifier).toggle(disconnectLabel: s.disconnect),
+                    ),
+                    const SizedBox(height: 14),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Text(
+                        title,
+                        key: ValueKey(vpn.phase),
+                        textAlign: TextAlign.center,
+                        style: AppType.display.copyWith(color: color, fontSize: 30),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 24,
+                      child: vpn.phase == VpnPhase.connected
+                          ? Text(
+                              s.n(Fmt.clock(vpn.duration)),
+                              style: AppType.metric.copyWith(color: t.textSecondary, fontSize: 17),
+                            )
+                          : Text(hint, textAlign: TextAlign.center, style: AppType.body.copyWith(color: t.textMuted)),
+                    ),
+                    const SizedBox(height: 10),
+                    location,
+                    if (failure != null) ...[
+                      const SizedBox(height: 14),
+                      NoticeBanner(message: failure, icon: Icons.error_outline_rounded, color: t.danger),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }
           final ring = math.min(c.maxHeight, c.maxWidth * 0.4).clamp(150.0, 280.0).toDouble();
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -352,8 +446,8 @@ class _LocationCard extends ConsumerWidget {
     final t = context.tokens;
     final srv = server;
 
-    final title = srv == null ? s.fastestLocation : countryName(s, srv.countryCode);
-    final subtitle = auto ? s.fastestLocation : (srv?.tag ?? srv?.transport.toUpperCase() ?? '');
+    final title = srv == null ? s.fastestLocation : serverTitle(s, srv);
+    final subtitle = auto ? s.fastestLocation : (srv == null ? '' : serverSubtitle(s, srv));
 
     const padding = EdgeInsets.symmetric(horizontal: 14, vertical: 12);
     final row = Row(
@@ -627,6 +721,45 @@ class _PlanCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+
+/// One line under the status in the vertical hero: flag, country and
+/// whether "fastest" picked it. The server panel beside it does the picking.
+class _CurrentLocation extends StatelessWidget {
+  const _CurrentLocation({required this.server, required this.auto});
+
+  final VpnServer? server;
+  final bool auto;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final t = context.tokens;
+    final current = server;
+    if (current == null) {
+      return Text(s.noServersTitle, style: AppType.label.copyWith(color: t.textMuted));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FlagTile(code: current.countryCode, size: 24),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            serverTitle(s, current),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.label.copyWith(color: t.textSecondary, fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (auto) ...[
+          const SizedBox(width: 6),
+          Text('· ${s.fastestLocation}', style: AppType.label.copyWith(color: t.textMuted)),
+        ],
+      ],
     );
   }
 }

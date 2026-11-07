@@ -80,3 +80,17 @@ files would stay behind.
 - `settings_screen.dart`, `strings.dart`: the "Strict mode" switch is now a
   two-option selector, "TUN engine: sing-box (fast) | flutter_vless (kill switch)",
   with a hint under it for the chosen engine. Same setting (`windowsStrictTun`).
+
+## Desktop Home with locations, and the connect animation
+- New `lib/features/home/server_panel.dart`: locations panel on desktop Home (search,
+  test ping, fastest location, servers grouped by subscription). One click selects;
+  while connected it switches to that server. Adding and editing stays on Servers.
+- `lib/features/home/home_screen.dart`: when the page is at least 1000 px wide (and
+  640 px tall), Home is two columns: connect card (button above status and current
+  location), speeds and plan on the left, locations on the right. Narrower windows
+  keep the previous layout; phones are unchanged.
+- `lib/features/home/connect_button.dart`: while connecting, radar waves pulse from
+  the button to the ring, two dots orbit and the button breathes; when it connects,
+  a double green shockwave, a particle burst, a pop and (phones) a short vibration.
+  Skipped when the system asks for reduced motion.
+- `lib/core/l10n/strings.dart`: panel text (EN + FA).

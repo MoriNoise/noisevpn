@@ -151,7 +151,7 @@ class _StatusCard extends ConsumerWidget {
     };
     final detail = vpn.phase == VpnPhase.disconnected || vpn.server == null
         ? s.version(AppInfo.version)
-        : countryName(s, vpn.server!.countryCode);
+        : serverTitle(s, vpn.server!);
 
     return Container(
       padding: const EdgeInsets.all(12),

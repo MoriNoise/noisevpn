@@ -1,10 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/l10n/strings.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/app_type.dart';
-import 'countries.dart';
+import 'flag_images.dart';
 import 'servers_controller.dart';
 
 /// Country flag in a rounded tile. Windows can't draw flag emoji, so it
@@ -19,8 +18,6 @@ class FlagTile extends StatelessWidget {
   final String? code;
   final bool auto;
   final double size;
-
-  static bool get _emojiFlags => kIsWeb || defaultTargetPlatform != TargetPlatform.windows;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +40,34 @@ class FlagTile extends StatelessWidget {
       );
     }
 
+    // Flag images instead of emoji: Windows has no flag emoji, and the
+    // emoji look different on every other platform.
     final c = code;
+    final png = c == null ? null : flagPng(c);
+    final Widget inner;
+    if (png != null) {
+      inner = Container(
+        width: size * 0.74,
+        height: size * 0.52,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size * 0.1),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.08), width: 0.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.memory(
+          png,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          excludeFromSemantics: true,
+        ),
+      );
+    } else if (c != null) {
+      inner = Text(c, style: AppType.label.copyWith(color: t.textSecondary, fontWeight: FontWeight.w800));
+    } else {
+      inner = Icon(Icons.public_rounded, size: size * 0.5, color: t.textMuted);
+    }
+
     return Container(
       width: size,
       height: size,
@@ -53,12 +77,7 @@ class FlagTile extends StatelessWidget {
         borderRadius: radius,
         border: Border.all(color: t.border),
       ),
-      child: c != null && _emojiFlags
-          ? Text(flagEmoji(c), style: TextStyle(fontSize: size * 0.5, height: 1.1))
-          : Text(
-              c ?? '?',
-              style: AppType.label.copyWith(color: t.textSecondary, fontWeight: FontWeight.w800),
-            ),
+      child: inner,
     );
   }
 }
