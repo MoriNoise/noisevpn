@@ -46,3 +46,11 @@ files would stay behind.
 ## Windows build fix (LNK1327)
 - `windows/runner/CMakeLists.txt`: `/MANIFESTUAC:NO`, so the linker doesn't add a
   second UAC level next to the manifest's `requireAdministrator`.
+
+## Fix: Windows stuck on "connecting" (the real cause)
+- `windows/runner/flutter_window.cpp`: `SetChildContent()` now runs before
+  `RegisterPlugins()`. flutter_vless 1.1.7 on Windows caches the main window at
+  registration (`GetAncestor(view, GA_ROOT)`) and posts every start/stop result
+  and status update to it. Flutter creates the view under `HWND_MESSAGE`, so
+  with the old order the plugin cached the wrong window and every message was
+  dropped: the native side connected, the app never heard about it.

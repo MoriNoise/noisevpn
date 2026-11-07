@@ -34,8 +34,14 @@ bool FlutterWindow::OnCreate() {
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
-  RegisterPlugins(flutter_controller_->engine());
+  // Attach the view to this window BEFORE registering plugins. Flutter
+  // creates the view under HWND_MESSAGE; flutter_vless looks up the main
+  // window once, at registration, with GetAncestor(view, GA_ROOT), and posts
+  // every start/stop result and status update there. Registered first, it
+  // caches the wrong window, its messages are dropped, and the app waits
+  // forever on "connecting" while the native side has already started.
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  RegisterPlugins(flutter_controller_->engine());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
