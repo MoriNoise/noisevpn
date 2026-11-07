@@ -459,6 +459,7 @@ class VpnController extends Notifier<VpnState> {
       blockedApps: blocked,
       bypassSubnets: settings.bypassLan ? VpnSettings.lanSubnets : const [],
       dnsThroughTunnel: settings.dnsThroughTunnel,
+      windowsFastTun: !settings.windowsStrictTun,
       tweaks: ConfigTweaks(
         dnsServer: settings.dnsServer,
         // iOS rejects system bypass subnets, and flutter_vless 1.1.7 on

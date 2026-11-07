@@ -170,7 +170,12 @@ class _ProtectionCardState extends ConsumerState<_ProtectionCard> {
         children: [
           CardHeader(icon: Icons.shield_outlined, title: s.protection, subtitle: s.protectionHint),
           const SizedBox(height: 16),
-          Text(s.killSwitchNote, style: AppType.caption.copyWith(color: t.textMuted)),
+          Text(
+            !kIsWeb && defaultTargetPlatform == TargetPlatform.windows && !settings.windowsStrictTun
+                ? s.killSwitchFastNote
+                : s.killSwitchNote,
+            style: AppType.caption.copyWith(color: t.textMuted),
+          ),
           if (alwaysOn) ...[
             const SizedBox(height: 16),
             Row(

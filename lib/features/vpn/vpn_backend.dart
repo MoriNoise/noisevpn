@@ -39,6 +39,7 @@ class VpnStartOptions {
     this.bypassSubnets = const [],
     this.dnsThroughTunnel = true,
     this.tweaks = const ConfigTweaks(),
+    this.windowsFastTun = true,
   });
 
   final bool proxyOnly;
@@ -54,6 +55,10 @@ class VpnStartOptions {
 
   /// Edits to the Xray config itself (DNS, routing rules, fragment).
   final ConfigTweaks tweaks;
+
+  /// Windows VPN mode: sing-box + Xray (fast) instead of flutter_vless's
+  /// protected tunnel (kill switch, about 10 s to connect).
+  final bool windowsFastTun;
 }
 
 /// What the loaded native engine supports, from flutter_vless's

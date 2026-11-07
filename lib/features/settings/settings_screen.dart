@@ -176,6 +176,24 @@ class _ModeCard extends ConsumerWidget {
                 : (_windows ? s.modeTunHintWindows : s.modeTunHint),
             style: AppType.caption.copyWith(color: t.textMuted),
           ),
+          if (_windows && !settings.proxyOnly) ...[
+            const SizedBox(height: 16),
+            Text(s.tunEngine, style: AppType.label.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            AppSegmented<bool>(
+              selected: settings.windowsStrictTun,
+              onChanged: (strict, _) => controller.update((x) => x.copyWith(windowsStrictTun: strict)),
+              options: [
+                SegmentOption(value: false, label: s.tunEngineFast, icon: Icons.bolt_rounded),
+                SegmentOption(value: true, label: s.tunEngineStrict, icon: Icons.shield_outlined),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              settings.windowsStrictTun ? s.tunEngineStrictHint : s.tunEngineFastHint,
+              style: AppType.caption.copyWith(color: t.textMuted),
+            ),
+          ],
           if (settings.proxyOnly) ...[
             const SizedBox(height: 16),
             _PortField(port: settings.socksPort),

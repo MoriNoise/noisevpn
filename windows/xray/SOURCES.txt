@@ -1,0 +1,12 @@
+Third-party programs shipped in this folder (unmodified binaries)
+
+sing-box 1.14.4 (sing-box.exe) - GPL-3.0-or-later, see LICENSE.sing-box
+  Source: https://github.com/SagerNet/sing-box/tree/v1.14.4
+  Binary: https://github.com/SagerNet/sing-box/releases/tag/v1.14.4
+
+Xray-core 26.10.31 (xray.exe, geoip.dat, geosite.dat) - MPL-2.0, see LICENSE.xray-core
+  Source: https://github.com/XTLS/Xray-core
+  Binary: https://github.com/XIIIFOX/flutter_vless/releases/tag/xray-windows-v26.10.31-r2
+
+tun2socks.exe, wintun.dll - from the flutter_vless 1.1.7 example
+  https://github.com/XIIIFOX/flutter_vless/tree/v1.1.7/example/windows/xray

@@ -290,6 +290,16 @@ jobs:
           Get-Verified "$base/tun2socks.exe" "$dir\tun2socks.exe" "a1f8ac84852ed9a9c7a50949cd0290b6f1594e118bf053416b9b55b7cd7ae414"
           Get-Verified "$base/wintun.dll"    "$dir\wintun.dll"    "e5da8447dc2c320edc0fc52fa01885c103de8c118481f683643cacc3220dafce"
 
+          # sing-box (fast TUN engine), official release, pinned
+          $sb = "$env:RUNNER_TEMP\sing-box.zip"
+          Get-Verified "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip" `
+            $sb "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df"
+          Expand-Archive $sb -DestinationPath "$env:RUNNER_TEMP\sb" -Force
+          Copy-Item "$env:RUNNER_TEMP\sb\sing-box-1.14.4-windows-amd64\sing-box.exe" $dir -Force
+          Copy-Item "$env:RUNNER_TEMP\sb\sing-box-1.14.4-windows-amd64\LICENSE" "$dir\LICENSE.sing-box" -Force
+          $h = (Get-FileHash "$dir\sing-box.exe" -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne "8f30682ee198855440d2a7fe070d5d3653793b2d01bb8c85eea88f93bbe7c8b9") { throw "sing-box.exe SHA-256 mismatch: $h" }
+
           Get-ChildItem $dir
 
       - name: Build Windows
@@ -305,7 +315,7 @@ jobs:
           }
           Get-ChildItem $dst
           # The VPN engine must ship inside the installer.
-          foreach ($f in "xray.exe", "tun2socks.exe", "wintun.dll", "geoip.dat", "geosite.dat") {
+          foreach ($f in "xray.exe", "tun2socks.exe", "wintun.dll", "geoip.dat", "geosite.dat", "sing-box.exe") {
             if (-not (Test-Path "$dst\xray\$f")) { throw "xray\$f missing from the build output" }
           }
 

@@ -9,6 +9,7 @@ import '../../core/config/app_config.dart';
 import '../servers/server_models.dart';
 import 'geo_assets.dart';
 import 'vpn_backend.dart';
+import 'windows_tun.dart';
 
 bool get _iOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 bool get _android => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -17,7 +18,26 @@ bool get _android => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 class FlutterVlessBackend implements VpnBackend {
   FlutterVlessBackend() {
     _vless = FlutterVless(onStatusChanged: _onStatus);
+    final fast = _fast;
+    if (fast != null) {
+      fast.status.listen((e) {
+        if (e.phase == VpnPhase.disconnected) _fastActive = false;
+        if (!_status.isClosed) _status.add(e);
+      });
+      // A crash may have left the previous session's processes running.
+      unawaited(fast.cleanupStale());
+    }
   }
+
+  /// Windows only: the sing-box + Xray TUN engine (null elsewhere or when
+  /// its files are missing).
+  final WindowsTunEngine? _fast = WindowsTunEngine.create();
+
+  /// The running session belongs to [_fast], not flutter_vless.
+  bool _fastActive = false;
+
+  /// flutter_vless may hold a Windows session (or its traffic barrier).
+  bool _vlessUsed = false;
 
   late FlutterVless _vless;
   final _status = StreamController<VpnStatusEvent>.broadcast();
@@ -55,6 +75,9 @@ class FlutterVlessBackend implements VpnBackend {
   }
 
   void _onStatus(VlessStatus s) {
+    // flutter_vless reports "disconnected" when (re)initialized; that says
+    // nothing about the fast engine's session.
+    if (_fastActive) return;
     final phase = switch (s.connectionState) {
       VlessConnectionState.connected => VpnPhase.connected,
       VlessConnectionState.connecting => VpnPhase.connecting,
@@ -143,6 +166,36 @@ class FlutterVlessBackend implements VpnBackend {
     required String disconnectLabel,
     VpnStartOptions options = const VpnStartOptions(),
   }) async {
+    final fast = _fast;
+    if (fast != null && !options.proxyOnly && options.windowsFastTun) {
+      if (_vlessUsed) {
+        try {
+          await _vless.stopVless();
+        } catch (_) {}
+        _vlessUsed = false;
+      }
+      _fastActive = true;
+      try {
+        await fast.start(
+          config: options.tweaks.apply(config),
+          bypassSubnets: options.bypassSubnets,
+          dnsServer: options.tweaks.dnsServer,
+        );
+      } on VpnEngineException {
+        _fastActive = false;
+        rethrow;
+      } catch (e) {
+        _fastActive = false;
+        throw VpnEngineException(VpnEngineError.other, '$e');
+      }
+      return;
+    }
+    if (_fastActive && fast != null) {
+      await fast.stop();
+      _fastActive = false;
+    }
+    _vlessUsed = true;
+
     var prepared = options.proxyOnly ? _withSocksPort(config, options.socksPort) : config;
     prepared = options.tweaks.apply(prepared);
     // Only Windows and macOS take system bypass subnets (as direct rules
@@ -185,6 +238,12 @@ class FlutterVlessBackend implements VpnBackend {
 
   @override
   Future<void> stop() async {
+    final fast = _fast;
+    if (_fastActive && fast != null) {
+      await fast.stop();
+      _fastActive = false;
+      return;
+    }
     try {
       await _vless.stopVless();
     } on PlatformException catch (e) {
@@ -196,6 +255,7 @@ class FlutterVlessBackend implements VpnBackend {
 
   @override
   Future<bool?> isSessionAlive() async {
+    if (_fastActive) return _fast?.isActive ?? false;
     if (!_android) return null;
     try {
       return await _native.invokeMethod<bool>('vpnServiceRunning');
@@ -219,6 +279,8 @@ class FlutterVlessBackend implements VpnBackend {
 
   @override
   Future<int?> connectedDelay() async {
+    final fast = _fast;
+    if (_fastActive && fast != null) return fast.connectedDelay(AppConfig.pingUrl);
     try {
       final ms = await _vless.getConnectedServerDelay(url: AppConfig.pingUrl).timeout(const Duration(seconds: 15));
       return ms > 0 ? ms : null;
@@ -283,11 +345,13 @@ class FlutterVlessBackend implements VpnBackend {
 
   @override
   Future<String> diagnostics() async {
+    var native = '';
     try {
-      return await _vless.getProviderDebugSnapshot();
-    } catch (_) {
-      return '';
-    }
+      native = await _vless.getProviderDebugSnapshot();
+    } catch (_) {}
+    final fast = _fast?.log ?? '';
+    if (fast.isEmpty) return native;
+    return '== Fast TUN (sing-box + Xray) ==\n$fast${native.isEmpty ? '' : '\n\n== flutter_vless ==\n$native'}';
   }
 
   @override

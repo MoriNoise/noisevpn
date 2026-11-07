@@ -61,3 +61,22 @@ files would stay behind.
 - `lib/features/vpn/flutter_vless_backend.dart`: passes it as `geoAssetsDirectory`,
   so flutter_vless no longer copies geoip.dat + geosite.dat (about 27 MB) into a
   new private folder in C:\Windows\Temp on every TUN connect.
+
+## Windows fast TUN engine (sing-box + Xray)
+- New `lib/features/vpn/windows_tun.dart`, `windows_tun_io.dart`, `windows_tun_stub.dart`,
+  `windows_tun_config.dart`: Xray runs the server config behind a private,
+  password-protected local SOCKS port; sing-box 1.14.4 owns the Wintun adapter,
+  routes and DNS (like v2rayN). Both run from the app's `xray\` folder, so
+  antivirus scans them once instead of on every connect.
+- `flutter_vless_backend.dart`: Windows VPN mode uses it unless Strict mode is on.
+  Proxy mode and Strict mode still use flutter_vless.
+- `vpn_settings.dart`, `vpn_backend.dart`, `vpn_controller.dart`, `settings_screen.dart`,
+  `advanced_tab.dart`, `strings.dart`: "Strict mode (kill switch)" switch (Windows,
+  Settings → Connection), off by default.
+- `windows/xray/sing-box.exe`, `LICENSE.sing-box`, `SOURCES.txt`; `windows/CMakeLists.txt`
+  requires sing-box.exe; the CI workflow downloads it, pinned by SHA-256.
+
+## TUN engine selector (Windows)
+- `settings_screen.dart`, `strings.dart`: the "Strict mode" switch is now a
+  two-option selector, "TUN engine: sing-box (fast) | flutter_vless (kill switch)",
+  with a hint under it for the chosen engine. Same setting (`windowsStrictTun`).

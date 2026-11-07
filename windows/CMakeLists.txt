@@ -113,7 +113,7 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
 # directory), and wintun.dll has to sit beside tun2socks.exe. The app's own
 # batch ping uses the same xray.exe.
 set(XRAY_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xray")
-foreach(xray_file xray.exe tun2socks.exe wintun.dll geoip.dat geosite.dat)
+foreach(xray_file xray.exe tun2socks.exe wintun.dll geoip.dat geosite.dat sing-box.exe)
   if(NOT EXISTS "${XRAY_RUNTIME_DIR}/${xray_file}")
     message(FATAL_ERROR
       "Missing windows/xray/${xray_file}. VPN and ping need the flutter_vless "

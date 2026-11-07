@@ -57,6 +57,7 @@ class VpnSettings {
     this.quickAccessUnlock = true,
     this.quickAccessOpensApp = false,
     this.diagnostics = true,
+    this.windowsStrictTun = false,
   });
 
   /// Default local SOCKS port in proxy-only mode.
@@ -117,6 +118,10 @@ class VpnSettings {
 
   /// Keep a privacy-filtered native log for troubleshooting.
   final bool diagnostics;
+
+  /// Windows VPN mode through flutter_vless's protected tunnel (kill switch,
+  /// about 10 s to connect) instead of the fast sing-box engine.
+  final bool windowsStrictTun;
 
   /// RFC 1918, link-local and carrier-grade NAT ranges.
   static const lanSubnets = [
@@ -209,6 +214,7 @@ class VpnSettings {
     bool? quickAccessUnlock,
     bool? quickAccessOpensApp,
     bool? diagnostics,
+    bool? windowsStrictTun,
   }) {
     return VpnSettings(
       proxyOnly: proxyOnly ?? this.proxyOnly,
@@ -232,6 +238,7 @@ class VpnSettings {
       quickAccessUnlock: quickAccessUnlock ?? this.quickAccessUnlock,
       quickAccessOpensApp: quickAccessOpensApp ?? this.quickAccessOpensApp,
       diagnostics: diagnostics ?? this.diagnostics,
+      windowsStrictTun: windowsStrictTun ?? this.windowsStrictTun,
     );
   }
 
@@ -257,6 +264,7 @@ class VpnSettings {
         'quickAccessUnlock': quickAccessUnlock,
         'quickAccessOpensApp': quickAccessOpensApp,
         'diagnostics': diagnostics,
+        'windowsStrictTun': windowsStrictTun,
       };
 
   static T _enum<T extends Enum>(List<T> values, Object? name, T fallback) =>
@@ -291,6 +299,7 @@ class VpnSettings {
       quickAccessUnlock: j['quickAccessUnlock'] != false,
       quickAccessOpensApp: j['quickAccessOpensApp'] == true,
       diagnostics: j['diagnostics'] != false,
+      windowsStrictTun: j['windowsStrictTun'] == true,
     );
   }
 }

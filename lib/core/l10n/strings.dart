@@ -249,6 +249,13 @@ abstract class S {
   String get errHours;
   String hoursShort(double hours);
   String autoShort(String every);
+  // Windows fast TUN
+  String get tunEngine;
+  String get tunEngineFast;
+  String get tunEngineStrict;
+  String get tunEngineFastHint;
+  String get tunEngineStrictHint;
+  String get killSwitchFastNote;
 }
 
 class _En extends S {
@@ -482,6 +489,12 @@ class _En extends S {
     return '${whole ? hours.round() : hours.toStringAsFixed(1)} h';
   }
   @override String autoShort(String every) => 'auto $every';
+  @override String get tunEngine => 'TUN engine';
+  @override String get tunEngineFast => 'sing-box (fast)';
+  @override String get tunEngineStrict => 'flutter_vless (kill switch)';
+  @override String get tunEngineFastHint => 'Connects in a few seconds. No kill switch: if the VPN process stops, traffic goes out directly.';
+  @override String get tunEngineStrictHint => 'If the VPN drops, all traffic is blocked until it reconnects or you disconnect. Connecting takes about 10 seconds.';
+  @override String get killSwitchFastNote => 'The sing-box TUN engine has no kill switch: if the VPN process stops, traffic goes out directly. Choose flutter_vless as the TUN engine in Settings → Connection to block it instead.';
 }
 
 class _Fa extends S {
@@ -714,4 +727,10 @@ class _Fa extends S {
     return n('${whole ? hours.round() : hours.toStringAsFixed(1)} ساعت');
   }
   @override String autoShort(String every) => rtl('خودکار $every');
+  @override String get tunEngine => rtl('موتور TUN');
+  @override String get tunEngineFast => rtl('sing-box (سریع)');
+  @override String get tunEngineStrict => rtl('flutter_vless (کیل‌سوییچ)');
+  @override String get tunEngineFastHint => rtl('چند ثانیه‌ای وصل می‌شه. کیل‌سوییچ نداره: اگه پروسه‌ی VPN بسته بشه، ترافیک مستقیم می‌ره.');
+  @override String get tunEngineStrictHint => rtl('اگه VPN قطع بشه، همه‌ی ترافیک بسته می‌مونه تا دوباره وصل بشه یا خودت قطع کنی. اتصال حدود ۱۰ ثانیه طول می‌کشه.');
+  @override String get killSwitchFastNote => rtl('موتور TUN با sing-box کیل‌سوییچ نداره: اگه پروسه‌ی VPN بسته بشه، ترافیک مستقیم می‌ره. برای بستنش، توی تنظیمات ← اتصال موتور TUN رو flutter_vless بذار.');
 }
