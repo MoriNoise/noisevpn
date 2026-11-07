@@ -30,3 +30,19 @@ files would stay behind.
 - `ios/Runner/Info.plist`: `FlutterVlessKeychainAccessGroup`
 - `test/widget_test.dart`: new backend methods, WireGuard and tweak tests
 - `README.md`, `NOISE_VPN_GUIDE.md`
+
+## Fix: Windows timeouts, Android Bypass LAN
+- `lib/features/vpn/vpn_controller.dart`: Windows and macOS get 90 s for `start()`
+  and 100 s for the whole attempt (was 15 s / 25 s), so sessions that were still
+  starting aren't cancelled. Bypass LAN on Android now uses Xray direct rules.
+- `lib/features/vpn/flutter_vless_backend.dart`: `bypassSubnets` is no longer sent
+  on Android (flutter_vless 1.1.7 rejects `10.0.0.0/8` there).
+- `lib/features/vpn/vpn_backend.dart`: comment only.
+
+## Subscriptions: edit and auto-update
+- `lib/features/servers/server_models.dart`, `servers_controller.dart`,
+  `add_source_sheet.dart`, `servers_screen.dart`, `lib/core/l10n/strings.dart`.
+
+## Windows build fix (LNK1327)
+- `windows/runner/CMakeLists.txt`: `/MANIFESTUAC:NO`, so the linker doesn't add a
+  second UAC level next to the manifest's `requireAdministrator`.

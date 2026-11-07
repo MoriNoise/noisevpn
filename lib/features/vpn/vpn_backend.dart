@@ -47,8 +47,8 @@ class VpnStartOptions {
   /// Android packages that skip the tunnel.
   final List<String> blockedApps;
 
-  /// System-level bypass (Android routes, macOS/Windows direct rules).
-  /// Never sent on iOS, which rejects it; there it becomes a [tweaks] rule.
+  /// System-level bypass (macOS/Windows direct rules). Never sent on iOS or
+  /// Android, which reject it; there it becomes a [tweaks] rule.
   final List<String> bypassSubnets;
   final bool dnsThroughTunnel;
 

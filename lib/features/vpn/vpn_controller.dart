@@ -123,6 +123,18 @@ class VpnController extends Notifier<VpnState> {
   /// From a granted permission to the engine's "connected".
   static const _connectTimeout = Duration(seconds: 25);
 
+  /// On Windows and macOS, start() only returns once the whole native
+  /// startup is done: Core preflight, then (VPN mode) the Wintun adapter or
+  /// Packet Tunnel, firewall rules and a packet-path probe. flutter_vless
+  /// allows itself up to 40 s for the VPN part alone, and a first run waits
+  /// for antivirus scanning of xray.exe. Giving up earlier stopped sessions
+  /// that were about to connect. The native side has its own bounded
+  /// budgets, so these are only a safety net.
+  static bool get _desktop =>
+      !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS);
+  static Duration get _startTimeout => _desktop ? const Duration(seconds: 90) : _callTimeout;
+  static Duration get _startGuard => _desktop ? const Duration(seconds: 100) : _connectTimeout;
+
   StreamSubscription<VpnStatusEvent>? _sub;
   Timer? _stopGuard;
   Timer? _watchdog;
@@ -360,7 +372,7 @@ class VpnController extends Notifier<VpnState> {
       // Started before start() so a start() that never returns is covered too.
       _awaitingSince = DateTime.now();
       _connectGuard?.cancel();
-      _connectGuard = Timer(_connectTimeout, () => _giveUp(attempt, VpnFailure.timeout));
+      _connectGuard = Timer(_startGuard, () => _giveUp(attempt, VpnFailure.timeout));
 
       await backend
           .start(
@@ -369,7 +381,7 @@ class VpnController extends Notifier<VpnState> {
             disconnectLabel: disconnectLabel,
             options: options,
           )
-          .timeout(_callTimeout);
+          .timeout(_startTimeout);
       if (!current()) return;
       _lastEvent = DateTime.now();
       await ref.read(sharedPreferencesProvider).setString(_lastServerKey, server.id);
@@ -449,8 +461,13 @@ class VpnController extends Notifier<VpnState> {
       dnsThroughTunnel: settings.dnsThroughTunnel,
       tweaks: ConfigTweaks(
         dnsServer: settings.dnsServer,
-        // iOS rejects system bypass subnets, so LAN goes direct inside Xray.
-        directSubnets: iOS && !settings.proxyOnly && settings.bypassLan ? VpnSettings.lanSubnets : const [],
+        // iOS rejects system bypass subnets, and flutter_vless 1.1.7 on
+        // Android refuses any list that covers its virtual DNS (10.0.85.53,
+        // inside 10.0.0.0/8) and no longer routes by it. On both, LAN goes
+        // direct inside Xray instead; the plugin's DNS rules stay first.
+        directSubnets: (iOS || android) && !settings.proxyOnly && settings.bypassLan
+            ? VpnSettings.lanSubnets
+            : const [],
         bypassIran: settings.bypassIran,
         blockAds: settings.blockAds && geoData,
         fragment: settings.fragment,

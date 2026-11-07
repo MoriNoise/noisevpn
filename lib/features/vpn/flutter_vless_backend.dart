@@ -144,9 +144,10 @@ class FlutterVlessBackend implements VpnBackend {
   }) async {
     var prepared = options.proxyOnly ? _withSocksPort(config, options.socksPort) : config;
     prepared = options.tweaks.apply(prepared);
-    // iOS rejects system bypass subnets in VPN mode (INCOMPATIBLE_ROUTING);
-    // the controller turns them into Xray direct rules there instead.
-    final subnets = options.proxyOnly || _iOS || options.bypassSubnets.isEmpty ? null : options.bypassSubnets;
+    // Only Windows and macOS take system bypass subnets (as direct rules
+    // after flutter_vless's own DNS guard). iOS rejects them and Android
+    // 1.1.7 rejects 10.0.0.0/8; the controller makes Xray direct rules there.
+    final subnets = options.proxyOnly || _iOS || _android || options.bypassSubnets.isEmpty ? null : options.bypassSubnets;
     try {
       await _vless.startVless(
         remark: remark,
