@@ -234,6 +234,21 @@ abstract class S {
   String get connectionFailed;
   String get xrayCore;
   String get checking;
+  // Subscription edit / auto-update
+  String get editSubscription;
+  String get save;
+  String get autoUpdate;
+  String get autoUpdateHint;
+  String get updateOff;
+  String get updateProvider;
+  String updateProviderHint(String fallback);
+  String providerSays(String every);
+  String updateEvery(String every);
+  String get updateCustom;
+  String get updateHoursLabel;
+  String get errHours;
+  String hoursShort(double hours);
+  String autoShort(String every);
 }
 
 class _En extends S {
@@ -449,6 +464,24 @@ class _En extends S {
   @override String get connectionFailed => 'No answer through the tunnel.';
   @override String get xrayCore => 'Xray core';
   @override String get checking => 'Checking…';
+  @override String get editSubscription => 'Edit subscription';
+  @override String get save => 'Save';
+  @override String get autoUpdate => 'Auto update';
+  @override String get autoUpdateHint => "Runs while the app is open, and when you come back to it. Phones don't update in the background.";
+  @override String get updateOff => 'Off';
+  @override String get updateProvider => 'As the subscription says';
+  @override String updateProviderHint(String fallback) => 'Uses the interval the panel sends. Every $fallback when it sends none.';
+  @override String providerSays(String every) => 'This subscription asks for every $every.';
+  @override String updateEvery(String every) => 'Every $every';
+  @override String get updateCustom => 'Custom';
+  @override String get updateHoursLabel => 'Hours between updates';
+  @override String get errHours => 'Use 1 to 168 hours.';
+  @override String hoursShort(double hours) {
+    if (hours < 1) return '${(hours * 60).round()} min';
+    final whole = hours == hours.roundToDouble();
+    return '${whole ? hours.round() : hours.toStringAsFixed(1)} h';
+  }
+  @override String autoShort(String every) => 'auto $every';
 }
 
 class _Fa extends S {
@@ -663,4 +696,22 @@ class _Fa extends S {
   @override String get connectionFailed => rtl('از داخل تونل جوابی نیومد.');
   @override String get xrayCore => rtl('هسته‌ی Xray');
   @override String get checking => rtl('در حال بررسی…');
+  @override String get editSubscription => rtl('ویرایش اشتراک');
+  @override String get save => rtl('ذخیره');
+  @override String get autoUpdate => rtl('به‌روزرسانی خودکار');
+  @override String get autoUpdateHint => rtl('وقتی اپ بازه، و هر بار که برمی‌گردی بهش انجام می‌شه. گوشی‌ها توی پس‌زمینه به‌روزرسانی نمی‌کنن.');
+  @override String get updateOff => rtl('خاموش');
+  @override String get updateProvider => rtl('طبق خود اشتراک');
+  @override String updateProviderHint(String fallback) => rtl('از فاصله‌ای که پنل می‌فرسته استفاده می‌کنه. اگه نفرسته، هر $fallback.');
+  @override String providerSays(String every) => rtl('این اشتراک می‌گه هر $every.');
+  @override String updateEvery(String every) => rtl('هر $every');
+  @override String get updateCustom => rtl('دلخواه');
+  @override String get updateHoursLabel => rtl('فاصله‌ی به‌روزرسانی (ساعت)');
+  @override String get errHours => rtl('یه عدد بین ۱ تا ۱۶۸ ساعت بذار.');
+  @override String hoursShort(double hours) {
+    if (hours < 1) return n('${(hours * 60).round()} دقیقه');
+    final whole = hours == hours.roundToDouble();
+    return n('${whole ? hours.round() : hours.toStringAsFixed(1)} ساعت');
+  }
+  @override String autoShort(String every) => rtl('خودکار $every');
 }

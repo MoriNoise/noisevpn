@@ -160,8 +160,8 @@ features/
 
 | Key | Content |
 | --- | --- |
-| `sources.subscriptions` | JSON list of `{id, url, name}` |
-| `sources.<id>.body` / `.userinfo` / `.time` | Cached subscription response per source |
+| `sources.subscriptions` | JSON list of `{id, url, name, updateMode, updateHours}` (updateMode: off / provider / interval; old entries read as provider, 12 h) |
+| `sources.<id>.body` / `.userinfo` / `.time` / `.interval` | Cached subscription response per source; `.interval` is the panel's `profile-update-interval` header (hours) |
 | `sources.local` | String list of pasted share links (or raw JSON) |
 | `servers.selection` | `auto` or `server:<serverId>` |
 | `vpn.settings` | Connection settings JSON: proxyOnly, socksPort, perAppMode, selectedApps, bypassLan, dnsThroughTunnel, dns, customDns, bypassIran, blockAds, fragment, autoReconnect, reconnectAttempts, reconnectMaxDelay, onDemand, requireAlwaysOn, notificationButton, quickAccess, quickAccessUnlock, quickAccessOpensApp, diagnostics |
@@ -169,6 +169,8 @@ features/
 | `ping.results` | Last ping per server: `{id: {ms, t}}`, max 500, shown again on launch |
 | `appearance.mode` / `appearance.accentId` / `appearance.glass` | Look settings |
 | `app.locale` | `fa` or `en` |
+
+**Auto-update:** each subscription has a schedule (Off, As the subscription says, every 6/12/24 h, custom 1–168 h), set when adding it or from the pencil button on its section. "As the subscription says" follows the `profile-update-interval` header and falls back to the chosen hours (12 by default); intervals are clamped to at least 15 minutes. `ServersController` refreshes due subscriptions at launch, every 5 minutes while the app is open and on resume; a failed attempt isn't retried automatically for 15 minutes. Nothing runs in the background on phones. Editing the link drops the cached copy and downloads again; refreshes for an old link are discarded.
 
 The subscription request sends `User-Agent: NoiseVPN/<version>`. A failed or empty refresh keeps the cached servers and marks the source `failed`.
 

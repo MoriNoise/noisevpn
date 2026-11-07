@@ -98,6 +98,7 @@ class ServersScreen extends ConsumerWidget {
           source: source,
           name: name,
           onRefresh: source.isLocal ? null : () => controller.refreshOne(source.id),
+          onEdit: source.isLocal ? null : () => showEditSubscriptionSheet(context, source),
           onRemove: () => _confirmRemove(context, ref, source, name),
         ));
         // Every config is its own row, in subscription order.
@@ -194,11 +195,18 @@ class _ServerGrid extends StatelessWidget {
 
 /// Section title for a subscription or the local configs.
 class _SourceHeader extends StatelessWidget {
-  const _SourceHeader({required this.source, required this.name, required this.onRefresh, required this.onRemove});
+  const _SourceHeader({
+    required this.source,
+    required this.name,
+    required this.onRefresh,
+    required this.onEdit,
+    required this.onRemove,
+  });
 
   final SourceData source;
   final String name;
   final VoidCallback? onRefresh;
+  final VoidCallback? onEdit;
   final VoidCallback onRemove;
 
   @override
@@ -218,9 +226,12 @@ class _SourceHeader extends StatelessWidget {
       detailColor = t.warning;
     } else {
       final time = source.fetchedAt;
-      detail = time == null
-          ? s.serversCount(source.servers.length)
-          : '${s.serversCount(source.servers.length)}    ${s.updatedAt(Fmt.time(time))}';
+      final every = source.updateInterval;
+      detail = [
+        s.serversCount(source.servers.length),
+        if (time != null) s.updatedAt(Fmt.time(time)),
+        if (every != null) s.autoShort(s.hoursShort(every.inMinutes / 60)),
+      ].join('    ');
     }
 
     return Padding(
@@ -258,6 +269,13 @@ class _SourceHeader extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     icon: Icon(Icons.refresh_rounded, size: 18, color: t.textMuted),
                   ),
+          if (onEdit != null)
+            IconButton(
+              tooltip: s.editSubscription,
+              onPressed: onEdit,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.edit_outlined, size: 18, color: t.textMuted),
+            ),
           IconButton(
             tooltip: s.remove,
             onPressed: onRemove,

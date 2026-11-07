@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +30,8 @@ final httpClientProvider = Provider<http.Client>((ref) {
 
 enum AddSubscriptionResult { added, invalidUrl, duplicate }
 
+enum EditSubscriptionResult { saved, invalidUrl, duplicate, notFound }
+
 /// Every server the app knows: subscriptions the user added (each with a
 /// saved copy so the list shows instantly and survives a failed refresh)
 /// and configs pasted by hand.
@@ -38,8 +41,20 @@ class ServersController extends Notifier<ServersData> {
   static String _bodyKey(String id) => 'sources.$id.body';
   static String _infoKey(String id) => 'sources.$id.userinfo';
   static String _timeKey(String id) => 'sources.$id.time';
+  static String _intervalKey(String id) => 'sources.$id.interval';
+
+  /// How often due subscriptions are looked for while the app is open.
+  static const _checkEvery = Duration(minutes: 5);
+
+  /// A failed refresh isn't retried automatically sooner than this.
+  static const _retryAfter = Duration(minutes: 15);
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
+
+  /// Last automatic or manual attempt per subscription (this run only).
+  final _lastAttempt = <String, DateTime>{};
+  Timer? _timer;
+  AppLifecycleListener? _lifecycle;
 
   @override
   ServersData build() {
@@ -47,13 +62,50 @@ class ServersController extends Notifier<ServersData> {
     final subs = _readSubs(prefs);
     final local = prefs.getStringList(_localKey) ?? const <String>[];
 
+    final cached = [for (final sub in subs) _fromCache(prefs, sub)];
+    final due = {for (final c in cached) if (_isDue(c)) c.id};
     final sources = <SourceData>[
-      for (final sub in subs) _fromCache(prefs, sub).copyWith(refreshing: true),
+      for (final c in cached) due.contains(c.id) ? c.copyWith(refreshing: true) : c,
       if (local.isNotEmpty) _localSource(local),
     ];
+
+    // Auto-update runs while the app is open: a periodic check, plus one
+    // whenever the app comes back to the foreground. Phones don't run it in
+    // the background.
+    _timer?.cancel();
+    _timer = Timer.periodic(_checkEvery, (_) => refreshDue());
+    _lifecycle?.dispose();
+    _lifecycle = AppLifecycleListener(onResume: refreshDue);
+    ref.onDispose(() {
+      _timer?.cancel();
+      _lifecycle?.dispose();
+    });
+
     // Refresh behind the saved copies; can't touch state during build.
-    Future.microtask(() => Future.wait([for (final sub in subs) refreshOne(sub.id)]));
+    Future.microtask(() => Future.wait([for (final id in due) refreshOne(id)]));
     return ServersData(sources);
+  }
+
+  /// Whether [source] should be downloaded now.
+  bool _isDue(SourceData source, [DateTime? now]) {
+    if (source.isLocal || source.refreshing) return false;
+    final at = now ?? DateTime.now();
+    final attempt = _lastAttempt[source.id];
+    if (attempt != null && at.difference(attempt) < _retryAfter) return false;
+    final fetched = source.fetchedAt;
+    if (fetched == null) return true; // never downloaded (new or edited link)
+    final interval = source.updateInterval;
+    if (interval == null) return false;
+    return at.difference(fetched) >= interval;
+  }
+
+  /// Refreshes every subscription whose update time has come.
+  Future<void> refreshDue() async {
+    final now = DateTime.now();
+    await Future.wait([
+      for (final s in state.sources)
+        if (_isDue(s, now)) refreshOne(s.id),
+    ]);
   }
 
   List<SubscriptionSource> _readSubs(SharedPreferences prefs) {
@@ -82,6 +134,8 @@ class ServersController extends Notifier<ServersData> {
       servers: body == null ? const [] : parseSubscription(body, sourceId: sub.id),
       usage: SubscriptionUsage.parse(prefs.getString(_infoKey(sub.id))),
       fetchedAt: time == null ? null : DateTime.fromMillisecondsSinceEpoch(time),
+      subscription: sub,
+      providerHours: parseUpdateInterval(prefs.getString(_intervalKey(sub.id))),
     );
   }
 
@@ -103,6 +157,7 @@ class ServersController extends Notifier<ServersData> {
     }
     final url = source?.url;
     if (source == null || url == null) return;
+    _lastAttempt[id] = DateTime.now();
     _replace(id, (s) => s.copyWith(refreshing: true));
 
     try {
@@ -117,7 +172,11 @@ class ServersController extends Notifier<ServersData> {
       if (servers.isEmpty) throw const SubscriptionException('no supported servers');
 
       final info = response.headers['subscription-userinfo'];
+      final intervalHeader = response.headers['profile-update-interval'];
+      final providerHours = parseUpdateInterval(intervalHeader);
       final now = DateTime.now();
+      // The link may have been edited while this was downloading.
+      if (!_stillCurrent(id, url)) return;
       await _prefs.setString(_bodyKey(id), body);
       await _prefs.setInt(_timeKey(id), now.millisecondsSinceEpoch);
       if (info == null) {
@@ -125,7 +184,12 @@ class ServersController extends Notifier<ServersData> {
       } else {
         await _prefs.setString(_infoKey(id), info);
       }
-      if (!state.sources.any((s) => s.id == id)) return; // removed meanwhile
+      if (providerHours == null) {
+        await _prefs.remove(_intervalKey(id));
+      } else {
+        await _prefs.setString(_intervalKey(id), intervalHeader!.trim());
+      }
+      if (!_stillCurrent(id, url)) return;
       _replace(
         id,
         (s) => SourceData(
@@ -135,11 +199,13 @@ class ServersController extends Notifier<ServersData> {
           servers: servers,
           usage: SubscriptionUsage.parse(info),
           fetchedAt: now,
+          subscription: s.subscription,
+          providerHours: providerHours,
         ),
       );
     } catch (e) {
       debugPrint('subscription $id refresh failed: $e');
-      if (!state.sources.any((s) => s.id == id)) return;
+      if (!_stillCurrent(id, url)) return;
       _replace(id, (s) => s.copyWith(refreshing: false, failed: true));
     }
   }
@@ -151,19 +217,30 @@ class ServersController extends Notifier<ServersData> {
     ]);
   }
 
-  Future<AddSubscriptionResult> addSubscription(String rawUrl, {String name = ''}) async {
+  /// The source still exists and still points at [url].
+  bool _stillCurrent(String id, String url) => state.sources.any((s) => s.id == id && s.url == url);
+
+  static bool _validUrl(Uri? uri) =>
+      uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
+
+  Future<AddSubscriptionResult> addSubscription(
+    String rawUrl, {
+    String name = '',
+    SubUpdateMode updateMode = SubUpdateMode.provider,
+    int updateHours = SubscriptionSource.defaultUpdateHours,
+  }) async {
     final url = rawUrl.trim();
     final uri = Uri.tryParse(url);
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || uri.host.isEmpty) {
-      return AddSubscriptionResult.invalidUrl;
-    }
+    if (!_validUrl(uri)) return AddSubscriptionResult.invalidUrl;
     final subs = _readSubs(_prefs);
     if (subs.any((s) => s.url == url)) return AddSubscriptionResult.duplicate;
 
     final sub = SubscriptionSource(
       id: stableId('$url|${DateTime.now().microsecondsSinceEpoch}'),
       url: url,
-      name: name.trim().isEmpty ? uri.host : name.trim(),
+      name: name.trim().isEmpty ? uri!.host : name.trim(),
+      updateMode: updateMode,
+      updateHours: updateHours,
     );
     await _writeSubs([...subs, sub]);
 
@@ -172,11 +249,70 @@ class ServersController extends Notifier<ServersData> {
     final others = state.sources.where((s) => !s.isLocal).toList();
     state = ServersData([
       ...others,
-      SourceData(id: sub.id, name: sub.name, url: sub.url, servers: const [], refreshing: true),
+      SourceData(id: sub.id, name: sub.name, url: sub.url, servers: const [], refreshing: true, subscription: sub),
       ...local,
     ]);
     unawaited(refreshOne(sub.id));
     return AddSubscriptionResult.added;
+  }
+
+  /// Changes a subscription's link, name or update schedule. A new link
+  /// drops the saved copy and downloads again.
+  Future<EditSubscriptionResult> editSubscription(
+    String id, {
+    required String url,
+    required String name,
+    required SubUpdateMode updateMode,
+    required int updateHours,
+  }) async {
+    final newUrl = url.trim();
+    final uri = Uri.tryParse(newUrl);
+    if (!_validUrl(uri)) return EditSubscriptionResult.invalidUrl;
+    final subs = _readSubs(_prefs);
+    final index = subs.indexWhere((s) => s.id == id);
+    if (index < 0) return EditSubscriptionResult.notFound;
+    if (subs.any((s) => s.id != id && s.url == newUrl)) return EditSubscriptionResult.duplicate;
+
+    final old = subs[index];
+    final sub = old.copyWith(
+      url: newUrl,
+      name: name.trim().isEmpty ? uri!.host : name.trim(),
+      updateMode: updateMode,
+      updateHours: updateHours.clamp(SubscriptionSource.minUpdateHours, SubscriptionSource.maxUpdateHours),
+    );
+    await _writeSubs([...subs]..[index] = sub);
+
+    final linkChanged = sub.url != old.url;
+    if (linkChanged) {
+      for (final k in [_bodyKey(id), _infoKey(id), _timeKey(id), _intervalKey(id)]) {
+        await _prefs.remove(k);
+      }
+      _lastAttempt.remove(id);
+    }
+    _replace(
+      id,
+      (s) => linkChanged
+          ? SourceData(id: id, name: sub.name, url: sub.url, servers: const [], subscription: sub)
+          : SourceData(
+              id: id,
+              name: sub.name,
+              url: sub.url,
+              servers: s.servers,
+              usage: s.usage,
+              fetchedAt: s.fetchedAt,
+              failed: s.failed,
+              refreshing: s.refreshing,
+              subscription: sub,
+              providerHours: s.providerHours,
+            ),
+    );
+    // A new link, or a shorter interval that is already over.
+    if (linkChanged) {
+      unawaited(refreshOne(id));
+    } else {
+      unawaited(refreshDue());
+    }
+    return EditSubscriptionResult.saved;
   }
 
   /// Adds every config found in [text] (share links, one per line, raw
@@ -207,7 +343,8 @@ class ServersController extends Notifier<ServersData> {
       await _prefs.remove(_localKey);
     } else {
       await _writeSubs(_readSubs(_prefs).where((s) => s.id != id).toList());
-      for (final k in [_bodyKey(id), _infoKey(id), _timeKey(id)]) {
+      _lastAttempt.remove(id);
+      for (final k in [_bodyKey(id), _infoKey(id), _timeKey(id), _intervalKey(id)]) {
         await _prefs.remove(k);
       }
     }

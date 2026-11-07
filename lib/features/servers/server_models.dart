@@ -86,25 +86,96 @@ class SubscriptionUsage {
   }
 }
 
+/// How a subscription refreshes itself.
+enum SubUpdateMode {
+  /// Only when the user taps refresh.
+  off,
+
+  /// Every `profile-update-interval` hours, the header subscription panels
+  /// (Marzban, 3x-ui, Hiddify…) send. [SubscriptionSource.updateHours] when
+  /// the panel sends none.
+  provider,
+
+  /// Every [SubscriptionSource.updateHours] hours.
+  interval,
+}
+
 /// A subscription the user added.
 @immutable
 class SubscriptionSource {
-  const SubscriptionSource({required this.id, required this.url, required this.name});
+  const SubscriptionSource({
+    required this.id,
+    required this.url,
+    required this.name,
+    this.updateMode = SubUpdateMode.provider,
+    this.updateHours = defaultUpdateHours,
+  });
+
+  static const defaultUpdateHours = 12;
+  static const minUpdateHours = 1;
+  static const maxUpdateHours = 168;
 
   final String id;
   final String url;
 
   /// What the user typed, or the link's host when they left it empty.
   final String name;
+  final SubUpdateMode updateMode;
+  final int updateHours;
 
-  Map<String, dynamic> toJson() => {'id': id, 'url': url, 'name': name};
+  /// Time between automatic refreshes, or null when off. [providerHours] is
+  /// the subscription's own `profile-update-interval`, if it sent one.
+  Duration? interval(double? providerHours) {
+    final hours = switch (updateMode) {
+      SubUpdateMode.off => null,
+      SubUpdateMode.provider =>
+        providerHours != null && providerHours > 0 ? providerHours : updateHours.toDouble(),
+      SubUpdateMode.interval => updateHours.toDouble(),
+    };
+    if (hours == null) return null;
+    // Never more often than every 15 minutes, whatever a panel says.
+    final minutes = (hours * 60).round().clamp(15, maxUpdateHours * 60);
+    return Duration(minutes: minutes);
+  }
+
+  SubscriptionSource copyWith({String? url, String? name, SubUpdateMode? updateMode, int? updateHours}) {
+    return SubscriptionSource(
+      id: id,
+      url: url ?? this.url,
+      name: name ?? this.name,
+      updateMode: updateMode ?? this.updateMode,
+      updateHours: updateHours ?? this.updateHours,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'url': url,
+        'name': name,
+        'updateMode': updateMode.name,
+        'updateHours': updateHours,
+      };
 
   static SubscriptionSource? fromJson(Object? json) {
     if (json is! Map) return null;
-    final id = json['id'], url = json['url'], name = json['name'];
+    final id = json['id'], url = json['url'], name = json['name'], hours = json['updateHours'];
     if (id is! String || url is! String) return null;
-    return SubscriptionSource(id: id, url: url, name: name is String && name.isNotEmpty ? name : url);
+    return SubscriptionSource(
+      id: id,
+      url: url,
+      name: name is String && name.isNotEmpty ? name : url,
+      // Subscriptions saved before auto-update existed follow the panel.
+      updateMode: SubUpdateMode.values.firstWhere((m) => m.name == json['updateMode'], orElse: () => SubUpdateMode.provider),
+      updateHours: hours is int && hours >= minUpdateHours && hours <= maxUpdateHours ? hours : defaultUpdateHours,
+    );
   }
+}
+
+/// `profile-update-interval: 12` (hours, sometimes fractional).
+double? parseUpdateInterval(String? header) {
+  if (header == null) return null;
+  final v = double.tryParse(header.trim());
+  return v != null && v > 0 && v.isFinite ? v : null;
 }
 
 /// One section of the server list: a subscription, or the local configs.
@@ -119,6 +190,8 @@ class SourceData {
     this.fetchedAt,
     this.refreshing = false,
     this.failed = false,
+    this.subscription,
+    this.providerHours,
   });
 
   final String id;
@@ -134,7 +207,16 @@ class SourceData {
   /// The last refresh failed (servers, if any, are the saved copy).
   final bool failed;
 
+  /// The saved subscription (null for local configs).
+  final SubscriptionSource? subscription;
+
+  /// The subscription's own `profile-update-interval`, in hours.
+  final double? providerHours;
+
   bool get isLocal => url == null;
+
+  /// Time between automatic refreshes, or null when there are none.
+  Duration? get updateInterval => subscription?.interval(providerHours);
 
   SourceData copyWith({
     List<VpnServer>? servers,
@@ -152,6 +234,8 @@ class SourceData {
       fetchedAt: fetchedAt ?? this.fetchedAt,
       refreshing: refreshing ?? this.refreshing,
       failed: failed ?? this.failed,
+      subscription: subscription,
+      providerHours: providerHours,
     );
   }
 }
