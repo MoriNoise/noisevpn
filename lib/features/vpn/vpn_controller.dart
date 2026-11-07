@@ -5,9 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_info.dart';
+import '../../core/l10n/locale_controller.dart';
+import '../../core/l10n/strings.dart';
 import '../../core/prefs.dart';
 import '../servers/server_models.dart';
 import '../servers/servers_controller.dart';
+import 'config_tweaks.dart';
 import 'installed_apps.dart';
 import 'vpn_backend.dart';
 import 'vpn_settings.dart';
@@ -22,7 +26,32 @@ enum VpnFailure {
   needsAdmin,
   startFailed,
   timeout,
+
+  /// Xray refused the server's config.
+  configRejected,
+
+  /// The server's routing can't run on this platform.
+  routing,
+
+  /// Settings require Android's Always-on VPN, which isn't turned on.
+  alwaysOnRequired,
+
+  /// Android's Always-on VPN owns the session: turn it off in system settings.
+  alwaysOnManaged,
+
+  /// iOS/macOS: the app and the tunnel can't share the profile (App Group /
+  /// Keychain setup).
+  keychain,
 }
+
+VpnFailure _failureFor(VpnEngineError e) => switch (e) {
+      VpnEngineError.config => VpnFailure.configRejected,
+      VpnEngineError.routing => VpnFailure.routing,
+      VpnEngineError.alwaysOnRequired => VpnFailure.alwaysOnRequired,
+      VpnEngineError.alwaysOnManaged => VpnFailure.alwaysOnManaged,
+      VpnEngineError.keychain => VpnFailure.keychain,
+      VpnEngineError.cancelled || VpnEngineError.other => VpnFailure.startFailed,
+    };
 
 @immutable
 class VpnState {
@@ -128,6 +157,12 @@ class VpnController extends Notifier<VpnState> {
       _lifecycle?.dispose();
     });
 
+    // Engine options must be in place before the first initialization: a
+    // quick tile or menu-bar control can cold-launch the app.
+    _setEngineOptions();
+    ref.listen(vpnSettingsProvider, (_, _) => _setEngineOptions());
+    ref.listen(localeProvider, (_, _) => _setEngineOptions());
+
     // Listen for status from launch, not only after the first Connect, so a
     // session that is already running (or that ended meanwhile) shows up.
     Future.microtask(() async {
@@ -139,6 +174,30 @@ class VpnController extends Notifier<VpnState> {
       await verify();
     });
     return const VpnState();
+  }
+
+  /// Hands the engine options from Settings to the backend. They take
+  /// effect at the next initialization (the next connect, or
+  /// [applyEngineOptionsNow]).
+  void _setEngineOptions() {
+    final s = S.forCode(ref.read(localeProvider).languageCode);
+    ref.read(vpnBackendProvider).setOptions(
+          ref.read(vpnSettingsProvider).toVlessOptions(disconnectLabel: s.disconnect, quickLabel: AppInfo.name),
+        );
+  }
+
+  /// Applies engine options right away when no session is running (Apple
+  /// requires the tunnel to be stopped before its options change). Returns
+  /// false when they will apply on the next connect instead.
+  Future<bool> applyEngineOptionsNow() async {
+    _setEngineOptions();
+    if (state.phase != VpnPhase.disconnected) return false;
+    try {
+      await ref.read(vpnBackendProvider).ensureInitialized();
+    } catch (e) {
+      debugPrint('vpn re-init failed: $e');
+    }
+    return true;
   }
 
   /// Brings the screen in line with what is really running. Called on
@@ -276,6 +335,7 @@ class VpnController extends Notifier<VpnState> {
       clearFailure: true,
     );
     try {
+      _setEngineOptions();
       await backend.ensureInitialized().timeout(_callTimeout);
       if (!current()) return;
 
@@ -316,6 +376,11 @@ class VpnController extends Notifier<VpnState> {
     } on TimeoutException catch (e) {
       debugPrint('vpn start timed out: $e');
       await _giveUp(attempt, VpnFailure.timeout);
+    } on VpnEngineException catch (e) {
+      // Replaced by a newer start or a stop: that one owns the state now.
+      if (e.error == VpnEngineError.cancelled) return;
+      debugPrint('vpn start refused: $e');
+      await _giveUp(attempt, _failureFor(e.error));
     } catch (e) {
       debugPrint('vpn start failed: $e');
       await _giveUp(attempt, VpnFailure.startFailed);
@@ -352,6 +417,10 @@ class VpnController extends Notifier<VpnState> {
   Future<VpnStartOptions> _options() async {
     final settings = ref.read(vpnSettingsProvider);
     final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final iOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    final windows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+    // geoip.dat / geosite.dat ship with the Android and Windows runtimes only.
+    final geoData = android || windows;
     var blocked = <String>[];
     if (android && !settings.proxyOnly && settings.selectedApps.isNotEmpty) {
       switch (settings.perAppMode) {
@@ -378,6 +447,15 @@ class VpnController extends Notifier<VpnState> {
       blockedApps: blocked,
       bypassSubnets: settings.bypassLan ? VpnSettings.lanSubnets : const [],
       dnsThroughTunnel: settings.dnsThroughTunnel,
+      tweaks: ConfigTweaks(
+        dnsServer: settings.dnsServer,
+        // iOS rejects system bypass subnets, so LAN goes direct inside Xray.
+        directSubnets: iOS && !settings.proxyOnly && settings.bypassLan ? VpnSettings.lanSubnets : const [],
+        bypassIran: settings.bypassIran,
+        blockAds: settings.blockAds && geoData,
+        fragment: settings.fragment,
+        geoData: geoData,
+      ),
     );
   }
 
@@ -403,6 +481,13 @@ class VpnController extends Notifier<VpnState> {
     });
     try {
       await ref.read(vpnBackendProvider).stop().timeout(_callTimeout);
+    } on VpnEngineException catch (e) {
+      debugPrint('vpn stop refused: $e');
+      if (e.error == VpnEngineError.alwaysOnManaged) {
+        // The system keeps the VPN up; say so instead of pretending it stopped.
+        _stopGuard?.cancel();
+        state = state.copyWith(phase: VpnPhase.connected, failure: VpnFailure.alwaysOnManaged);
+      }
     } catch (e) {
       debugPrint('vpn stop failed: $e');
     }

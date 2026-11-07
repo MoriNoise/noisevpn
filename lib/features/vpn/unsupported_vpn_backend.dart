@@ -1,5 +1,7 @@
-import 'vpn_backend.dart';
+import 'package:flutter_vless/flutter_vless.dart' show VlessOptions;
+
 import '../servers/server_models.dart';
+import 'vpn_backend.dart';
 
 /// Linux and web: flutter_vless has no native backend there, so the app
 /// can neither open a tunnel nor measure a real delay. Nothing is faked:
@@ -11,6 +13,12 @@ class UnsupportedVpnBackend implements VpnBackend {
 
   @override
   Stream<VpnStatusEvent> get status => const Stream.empty();
+
+  @override
+  void setOptions(VlessOptions options) {}
+
+  @override
+  String? get optionsError => null;
 
   @override
   Future<void> ensureInitialized() async {}
@@ -36,6 +44,24 @@ class UnsupportedVpnBackend implements VpnBackend {
 
   @override
   Future<int?> delay(VpnServer server) async => null;
+
+  @override
+  Future<int?> connectedDelay() async => null;
+
+  @override
+  Future<EngineCapabilities?> capabilities() async => null;
+
+  @override
+  Future<QuickTileResult> addQuickTile() async => QuickTileResult.unsupported;
+
+  @override
+  Future<void> clearQuickAccess() async {}
+
+  @override
+  Future<String?> coreVersion() async => null;
+
+  @override
+  Future<String> diagnostics() async => '';
 
   @override
   void dispose() {}

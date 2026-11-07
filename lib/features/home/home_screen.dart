@@ -175,6 +175,11 @@ String? _failureOf(S s, VpnFailure? failure) => switch (failure) {
       VpnFailure.needsAdmin => s.errNeedsAdmin,
       VpnFailure.startFailed => s.errConnect,
       VpnFailure.timeout => s.errTimeout,
+      VpnFailure.configRejected => s.errConfigRejected,
+      VpnFailure.routing => s.errRouting,
+      VpnFailure.alwaysOnRequired => s.errAlwaysOnRequired,
+      VpnFailure.alwaysOnManaged => s.errAlwaysOnManaged,
+      VpnFailure.keychain => s.errKeychain,
       null => null,
     };
 

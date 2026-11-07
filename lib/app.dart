@@ -4,18 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_info.dart';
-import 'core/config/app_config.dart';
 import 'core/l10n/locale_controller.dart';
 import 'core/responsive/app_scaler.dart';
 import 'core/responsive/form_factor.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/appearance_controller.dart';
 import 'core/theme/theme_transition.dart';
-import 'core/widgets/ambient_background.dart';
-import 'core/widgets/brand_mark.dart';
-import 'features/auth/auth_controller.dart';
-import 'features/auth/auth_repository.dart';
-import 'features/auth/login_screen.dart';
 import 'features/shell/app_shell.dart';
 
 class NoiseApp extends ConsumerWidget {
@@ -79,46 +73,7 @@ class NoiseApp extends ConsumerWidget {
           ),
         );
       },
-      home: const _Root(),
-    );
-  }
-}
-
-/// Stands in for a signed-in account while [AppConfig.requireLogin] is off.
-const _localUser = AuthUser(username: 'Noise');
-
-class _Root extends ConsumerWidget {
-  const _Root();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Login is parked until the API exists; the screen and its code stay.
-    if (!AppConfig.requireLogin) {
-      return const AppShell(key: ValueKey('shell'), user: _localUser);
-    }
-    final auth = ref.watch(authControllerProvider);
-    final Widget child = auth.when(
-      data: (user) => user == null
-          ? const LoginScreen(key: ValueKey('login'))
-          : AppShell(key: const ValueKey('shell'), user: user),
-      loading: () => const _Splash(key: ValueKey('splash')),
-      error: (_, _) => const LoginScreen(key: ValueKey('login')),
-    );
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 350),
-      switchInCurve: Curves.easeOut,
-      child: child,
-    );
-  }
-}
-
-class _Splash extends StatelessWidget {
-  const _Splash({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: AmbientBackground(child: Center(child: BrandMark(size: 56))),
+      home: const AppShell(),
     );
   }
 }

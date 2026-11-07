@@ -12,8 +12,10 @@ String rtl(String text) => '\u202B$text\u202C';
 abstract class S {
   const S();
 
-  static S of(BuildContext context) =>
-      Localizations.localeOf(context).languageCode == 'fa' ? const _Fa() : const _En();
+  static S of(BuildContext context) => forCode(Localizations.localeOf(context).languageCode);
+
+  /// For text needed outside the widget tree (the native notification).
+  static S forCode(String languageCode) => languageCode == 'fa' ? const _Fa() : const _En();
 
   bool get isFa;
 
@@ -22,29 +24,10 @@ abstract class S {
 
   String ms(int value) => n('$value ms');
 
-  // Login
-  String get loginTitle;
-  String get loginSubtitle;
-  String get username;
-  String get usernameHint;
-  String get password;
-  String get passwordHint;
+
+  // Text fields
   String get showPassword;
   String get hidePassword;
-  String get rememberMe;
-  String get forgotPassword;
-  String get forgotPasswordHelp;
-  String get signIn;
-  String get errUsernameRequired;
-  String get errPasswordShort;
-  String get errInvalidCredentials;
-  String get errNetwork;
-  String get demoHint;
-  String get brandHeadline;
-  String get brandBody;
-  String get featureEncrypted;
-  String get featureCountries;
-  String get featureOneTap;
 
   // Navigation & pages
   String get navHome;
@@ -94,8 +77,6 @@ abstract class S {
   String serversCount(int count);
   String updatedAt(String time);
   String get staleList;
-  String get noSubTitle;
-  String get noSubBody;
   String get subFailedTitle;
   String get subFailedBody;
   String get tryAgain;
@@ -139,9 +120,6 @@ abstract class S {
   String get glassModeHint;
   String get language;
   String get languageSubtitle;
-  String get account;
-  String get signedInAs;
-  String get signOut;
   String get changeTheme;
   String version(String v);
 
@@ -178,41 +156,100 @@ abstract class S {
   String get done;
   String get about;
   String get engine;
+
+  // Errors from flutter_vless 1.1.7
+  String get errConfigRejected;
+  String get errRouting;
+  String get errAlwaysOnRequired;
+  String get errAlwaysOnManaged;
+  String get errKeychain;
+
+  // Advanced settings
+  String get tabAdvanced;
+  String get optAuto;
+  String get optOn;
+  String get optOff;
+  String get dnsServer;
+  String get dnsServerHint;
+  String get dnsCustom;
+  String get dnsCustomHint;
+  String get errDns;
+  String get routing;
+  String get routingHint;
+  String get bypassIran;
+  String get bypassIranHint;
+  String get bypassIranAppleNote;
+  String get blockAds;
+  String get blockAdsHint;
+  String get fragment;
+  String get fragmentHint;
+  String get reconnect;
+  String get reconnectHint;
+  String get autoReconnect;
+  String get autoReconnectHint;
+  String get reconnectAttempts;
+  String get unlimited;
+  String get reconnectMaxDelay;
+  String seconds(int value);
+  String get onDemand;
+  String get onDemandHint;
+  String get protection;
+  String get protectionHint;
+  String get killSwitchNote;
+  String alwaysOnStatus(bool enabled, bool lockdown);
+  String get requireAlwaysOn;
+  String get requireAlwaysOnHint;
+  String get openVpnSettings;
+  String get systemControls;
+  String get systemControlsHint;
+  String get notificationButton;
+  String get notifDisconnect;
+  String get notifOpenApp;
+  String get notifNone;
+  String get quickAccess;
+  String quickAccessHint(String platform);
+  String get quickAccessUnlock;
+  String get quickAccessUnlockHint;
+  String get quickAccessAction;
+  String get quickToggle;
+  String get quickOpenApp;
+  String get addTile;
+  String get tileAdded;
+  String get tileAlreadyAdded;
+  String get tileDeclined;
+  String get clearQuickProfile;
+  String get quickProfileCleared;
+  String get quickUnavailable;
+  String optionsRefused(String detail);
+  String get diagnostics;
+  String get diagnosticsHint;
+  String get collectLogs;
+  String get viewLog;
+  String get copy;
+  String get copied;
+  String get logEmpty;
+  String get testConnection;
+  String get testConnectionHint;
+  String connectionOk(String ms);
+  String get connectionFailed;
+  String get xrayCore;
+  String get checking;
 }
 
 class _En extends S {
   const _En();
   @override bool get isFa => false;
 
-  @override String get loginTitle => 'Welcome back';
-  @override String get loginSubtitle => 'Sign in to see your servers and connect.';
-  @override String get username => 'Username';
-  @override String get usernameHint => 'Your account username';
-  @override String get password => 'Password';
-  @override String get passwordHint => 'At least 6 characters';
+
   @override String get showPassword => 'Show password';
   @override String get hidePassword => 'Hide password';
-  @override String get rememberMe => 'Keep me signed in';
-  @override String get forgotPassword => 'Forgot password?';
-  @override String get forgotPasswordHelp => 'Contact support to reset your password.';
-  @override String get signIn => 'Sign in';
-  @override String get errUsernameRequired => 'Enter your username.';
-  @override String get errPasswordShort => 'Password must be at least 6 characters.';
-  @override String get errInvalidCredentials => 'Username or password is wrong. Check them and try again.';
-  @override String get errNetwork => "Couldn't reach the server. Check your internet and try again.";
-  @override String get demoHint => 'Demo account: demo / demo1234';
-  @override String get brandHeadline => 'One tap to a fast, private connection.';
-  @override String get brandBody => 'Pick a country, connect, and get back to what you were doing.';
-  @override String get featureEncrypted => 'TLS encrypted';
-  @override String get featureCountries => 'Several countries';
-  @override String get featureOneTap => 'One-tap connect';
 
   @override String get navHome => 'Home';
   @override String get navServers => 'Servers';
   @override String get navSettings => 'Settings';
   @override String get homeSubtitle => 'Connection status and usage';
   @override String get serversSubtitle => 'Pick the country you want to connect through';
-  @override String get settingsSubtitle => 'Appearance, language and account';
+  @override String get settingsSubtitle => 'Appearance, connection and language';
 
   @override String get connect => 'Connect';
   @override String get disconnect => 'Disconnect';
@@ -252,8 +289,6 @@ class _En extends S {
   @override String serversCount(int count) => count == 1 ? '1 server' : '$count servers';
   @override String updatedAt(String time) => 'Updated $time';
   @override String get staleList => "Showing the saved list. The subscription couldn't be refreshed.";
-  @override String get noSubTitle => 'No subscription link';
-  @override String get noSubBody => "Your account doesn't have a subscription yet.";
   @override String get subFailedTitle => "Couldn't load servers";
   @override String get subFailedBody => 'Check your internet and try again.';
   @override String get tryAgain => 'Try again';
@@ -269,7 +304,7 @@ class _En extends S {
   @override String get subName => 'Name (optional)';
   @override String get subUrl => 'Subscription link';
   @override String get configText => 'Configs';
-  @override String get configHint => 'vless://, vmess://, trojan://, ss://… one per line';
+  @override String get configHint => 'vless://, vmess://, trojan://, ss://, hy2://, wireguard://, a WireGuard .conf, Xray / sing-box JSON or Clash YAML';
   @override String get paste => 'Paste';
   @override String get errInvalidUrl => 'Enter a link that starts with http:// or https://.';
   @override String get errDuplicateSub => 'This subscription is already added.';
@@ -296,9 +331,6 @@ class _En extends S {
   @override String get glassModeHint => 'Translucent, tinted surfaces over the colour backdrop.';
   @override String get language => 'Language';
   @override String get languageSubtitle => 'The layout stays the same in both';
-  @override String get account => 'Account';
-  @override String get signedInAs => 'Signed in as';
-  @override String get signOut => 'Sign out';
   @override String get changeTheme => 'Change theme';
   @override String version(String v) => 'Version $v';
 
@@ -311,7 +343,7 @@ class _En extends S {
   @override String get modeProxy => 'Proxy only';
   @override String modeProxyHint(int port) => 'No VPN. A SOCKS5 proxy runs on 127.0.0.1:$port for the apps you set it in.';
   @override String modeProxyHintWindows(int port) => 'No VPN. 127.0.0.1:$port is set as the Windows system proxy; apps that ignore system proxy settings connect directly.';
-  @override String get modeTunHintWindows => 'Every app goes through the tunnel (IPv4). Needs the app to run as administrator.';
+  @override String get modeTunHintWindows => 'Every app goes through the tunnel. Needs the app to run as administrator.';
   @override String get socksPort => 'Local SOCKS5 port';
   @override String get errPort => 'Use a port between 1024 and 65535.';
   @override String get perApp => 'Per-app proxy';
@@ -334,41 +366,105 @@ class _En extends S {
   @override String get done => 'Done';
   @override String get about => 'About';
   @override String get engine => 'Engine';
+
+  @override String get errConfigRejected => "Xray couldn't use this server's config. Try another location, or update the subscription.";
+  @override String get errRouting => "This server's routing can't run on this device. Try another location.";
+  @override String get errAlwaysOnRequired => 'Settings require Always-on VPN. Turn it on in the system VPN settings, or turn the option off in Settings → Advanced.';
+  @override String get errAlwaysOnManaged => "Android's Always-on VPN keeps this connection up. Turn Always-on off in the system VPN settings to disconnect.";
+  @override String get errKeychain => "The VPN profile couldn't be read. Unlock the device and try again; if it keeps happening, reinstall the app.";
+
+  @override String get tabAdvanced => 'Advanced';
+  @override String get optAuto => 'Auto';
+  @override String get optOn => 'On';
+  @override String get optOff => 'Off';
+  @override String get dnsServer => 'DNS server';
+  @override String get dnsServerHint => "Auto keeps the server's own DNS (sent through the proxy).";
+  @override String get dnsCustom => 'Custom';
+  @override String get dnsCustomHint => 'IP, or a URL like https://dns.example/dns-query';
+  @override String get errDns => 'Enter an IP address or a DNS URL.';
+  @override String get routing => 'Routing';
+  @override String get routingHint => 'What goes through the server and what connects directly';
+  @override String get bypassIran => 'Bypass Iranian sites';
+  @override String get bypassIranHint => '.ir sites and Iranian IPs connect directly, without the server.';
+  @override String get bypassIranAppleNote => 'On iPhone and Mac this covers .ir domains only (no GeoIP data there).';
+  @override String get blockAds => 'Block ads and trackers';
+  @override String get blockAdsHint => 'Drops known ad and tracking domains.';
+  @override String get fragment => 'TLS fragment';
+  @override String get fragmentHint => 'Splits the TLS handshake into pieces to get past SNI filtering. Only for TLS servers; may slow the first connection a little.';
+  @override String get reconnect => 'Reconnect';
+  @override String get reconnectHint => 'What happens when the connection drops';
+  @override String get autoReconnect => 'Reconnect automatically';
+  @override String get autoReconnectHint => 'Retries with growing pauses. Traffic stays blocked while it retries.';
+  @override String get reconnectAttempts => 'Attempts';
+  @override String get unlimited => 'No limit';
+  @override String get reconnectMaxDelay => 'Longest pause';
+  @override String seconds(int value) => value >= 60 && value % 60 == 0 ? '${value ~/ 60} min' : '$value s';
+  @override String get onDemand => 'On Demand';
+  @override String get onDemandHint => 'Lets the system restart the VPN after it stops unexpectedly.';
+  @override String get protection => 'Protection';
+  @override String get protectionHint => 'Keeping traffic inside the tunnel';
+  @override String get killSwitchNote => 'Kill switch is always on in VPN mode: if the connection drops, traffic is blocked until it comes back or you disconnect.';
+  @override String alwaysOnStatus(bool enabled, bool lockdown) => !enabled
+      ? 'Always-on VPN: off'
+      : (lockdown ? 'Always-on VPN: on, blocking connections without VPN' : 'Always-on VPN: on');
+  @override String get requireAlwaysOn => 'Require Always-on VPN';
+  @override String get requireAlwaysOnHint => "Don't connect unless Always-on is set for this app. Only that also blocks traffic if the whole VPN process is killed.";
+  @override String get openVpnSettings => 'Open system VPN settings';
+  @override String get systemControls => 'System controls';
+  @override String get systemControlsHint => 'Notification and quick toggle';
+  @override String get notificationButton => 'Notification button';
+  @override String get notifDisconnect => 'Disconnect';
+  @override String get notifOpenApp => 'Open app';
+  @override String get notifNone => 'None';
+  @override String get quickAccess => 'Quick toggle';
+  @override String quickAccessHint(String platform) => switch (platform) {
+        'Android' => 'A Quick Settings tile that connects the last server.',
+        'macOS' => 'A menu bar item that connects the last server.',
+        'Windows' => 'A tray icon that connects the last server.',
+        _ => 'A Control Center button that connects the last server.',
+      };
+  @override String get quickAccessUnlock => 'Require unlock';
+  @override String get quickAccessUnlockHint => 'Ask for the device unlock before switching.';
+  @override String get quickAccessAction => 'Tapping it';
+  @override String get quickToggle => 'Connects / disconnects';
+  @override String get quickOpenApp => 'Opens the app';
+  @override String get addTile => 'Add tile to Quick Settings';
+  @override String get tileAdded => 'Tile added.';
+  @override String get tileAlreadyAdded => 'The tile is already there.';
+  @override String get tileDeclined => 'Tile not added.';
+  @override String get clearQuickProfile => 'Forget saved quick profile';
+  @override String get quickProfileCleared => 'Forgotten. Connect once from the app to use the quick toggle again.';
+  @override String get quickUnavailable => 'Not available on this device.';
+  @override String optionsRefused(String detail) => 'The engine refused these options and is using its defaults: $detail';
+  @override String get diagnostics => 'Diagnostics';
+  @override String get diagnosticsHint => 'For troubleshooting. Contains no configs or passwords.';
+  @override String get collectLogs => 'Keep a connection log';
+  @override String get viewLog => 'View log';
+  @override String get copy => 'Copy';
+  @override String get copied => 'Copied';
+  @override String get logEmpty => 'Nothing logged yet. Connect once, then look again.';
+  @override String get testConnection => 'Test connection';
+  @override String get testConnectionHint => 'A real request through the running tunnel.';
+  @override String connectionOk(String ms) => 'Working, $ms';
+  @override String get connectionFailed => 'No answer through the tunnel.';
+  @override String get xrayCore => 'Xray core';
+  @override String get checking => 'Checking…';
 }
 
 class _Fa extends S {
   const _Fa();
   @override bool get isFa => true;
 
-  @override String get loginTitle => rtl('خوش برگشتی');
-  @override String get loginSubtitle => rtl('وارد شو تا سرورهات رو ببینی و وصل بشی.');
-  @override String get username => rtl('نام کاربری');
-  @override String get usernameHint => rtl('نام کاربری اکانتت');
-  @override String get password => rtl('رمز عبور');
-  @override String get passwordHint => rtl('حداقل ۶ کاراکتر');
+
   @override String get showPassword => rtl('نمایش رمز');
   @override String get hidePassword => rtl('پنهان کردن رمز');
-  @override String get rememberMe => rtl('وارد بمونم');
-  @override String get forgotPassword => rtl('رمز رو فراموش کردی؟');
-  @override String get forgotPasswordHelp => rtl('برای بازیابی رمز با پشتیبانی در تماس باش.');
-  @override String get signIn => rtl('ورود');
-  @override String get errUsernameRequired => rtl('نام کاربری رو وارد کن.');
-  @override String get errPasswordShort => rtl('رمز باید حداقل ۶ کاراکتر باشه.');
-  @override String get errInvalidCredentials => rtl('نام کاربری یا رمز اشتباهه. دوباره چک کن و امتحان کن.');
-  @override String get errNetwork => rtl('به سرور وصل نشد. اینترنتت رو چک کن و دوباره امتحان کن.');
-  @override String get demoHint => rtl('اکانت آزمایشی: demo / demo1234');
-  @override String get brandHeadline => rtl('با یه لمس، به اتصال سریع و امن وصل شو.');
-  @override String get brandBody => rtl('کشور رو انتخاب کن، وصل شو و برگرد سر کارت.');
-  @override String get featureEncrypted => rtl('رمزنگاری TLS');
-  @override String get featureCountries => rtl('چند کشور');
-  @override String get featureOneTap => rtl('اتصال با یه لمس');
 
   @override String get navHome => rtl('خانه');
   @override String get navServers => rtl('سرورها');
   @override String get navSettings => rtl('تنظیمات');
   @override String get homeSubtitle => rtl('وضعیت اتصال و مصرف');
   @override String get serversSubtitle => rtl('کشوری که می‌خوای ازش وصل بشی رو انتخاب کن');
-  @override String get settingsSubtitle => rtl('ظاهر، زبان و حساب کاربری');
+  @override String get settingsSubtitle => rtl('ظاهر، اتصال و زبان');
 
   @override String get connect => rtl('اتصال');
   @override String get disconnect => rtl('قطع اتصال');
@@ -408,8 +504,6 @@ class _Fa extends S {
   @override String serversCount(int count) => rtl('${n('$count')} سرور');
   @override String updatedAt(String time) => rtl('به‌روزرسانی ساعت ${n(time)}');
   @override String get staleList => rtl('لیست ذخیره‌شده رو می‌بینی. اشتراک به‌روز نشد.');
-  @override String get noSubTitle => rtl('لینک اشتراک تنظیم نشده');
-  @override String get noSubBody => rtl('اکانتت هنوز اشتراکی نداره.');
   @override String get subFailedTitle => rtl('سرورها لود نشدن');
   @override String get subFailedBody => rtl('اینترنتت رو چک کن و دوباره امتحان کن.');
   @override String get tryAgain => rtl('دوباره امتحان کن');
@@ -425,7 +519,7 @@ class _Fa extends S {
   @override String get subName => rtl('اسم (اختیاری)');
   @override String get subUrl => rtl('لینک اشتراک');
   @override String get configText => rtl('کانفیگ‌ها');
-  @override String get configHint => 'vless://, vmess://, trojan://, ss://…';
+  @override String get configHint => 'vless://, vmess://, trojan://, ss://, hy2://, wireguard://, WireGuard .conf, JSON, Clash YAML';
   @override String get paste => rtl('چسباندن');
   @override String get errInvalidUrl => rtl('یه لینک وارد کن که با http:// یا https:// شروع بشه.');
   @override String get errDuplicateSub => rtl('این اشتراک قبلاً اضافه شده.');
@@ -452,9 +546,6 @@ class _Fa extends S {
   @override String get glassModeHint => rtl('سطح‌های شفاف و رنگی روی پس‌زمینه‌ی رنگی.');
   @override String get language => rtl('زبان');
   @override String get languageSubtitle => rtl('چیدمان صفحه توی هر دو زبان یکیه');
-  @override String get account => rtl('حساب کاربری');
-  @override String get signedInAs => rtl('وارد شده با');
-  @override String get signOut => rtl('خروج از حساب');
   @override String get changeTheme => rtl('تغییر تم');
   @override String version(String v) => rtl('نسخه ${n(v)}');
 
@@ -467,7 +558,7 @@ class _Fa extends S {
   @override String get modeProxy => rtl('فقط پروکسی');
   @override String modeProxyHint(int port) => rtl('VPN روشن نمی‌شه. یه پروکسی SOCKS5 روی 127.0.0.1:$port بالا میاد که توی هر اپی بخوای تنظیمش کنی.');
   @override String modeProxyHintWindows(int port) => rtl('VPN روشن نمی‌شه. 127.0.0.1:$port به‌عنوان پروکسی سیستم ویندوز تنظیم می‌شه؛ اپ‌هایی که پروکسی سیستم رو نادیده می‌گیرن مستقیم وصل می‌شن.');
-  @override String get modeTunHintWindows => rtl('همه‌ی اپ‌ها از تونل رد می‌شن (IPv4). اپ باید با دسترسی Administrator اجرا بشه.');
+  @override String get modeTunHintWindows => rtl('همه‌ی اپ‌ها از تونل رد می‌شن. اپ باید با دسترسی Administrator اجرا بشه.');
   @override String get socksPort => rtl('پورت SOCKS5 محلی');
   @override String get errPort => rtl('یه پورت بین ۱۰۲۴ تا ۶۵۵۳۵ بذار.');
   @override String get perApp => rtl('پروکسی برای هر اپ');
@@ -490,4 +581,86 @@ class _Fa extends S {
   @override String get done => rtl('تأیید');
   @override String get about => rtl('درباره');
   @override String get engine => rtl('موتور');
+  @override String get errConfigRejected => rtl('Xray نتونست کانفیگ این سرور رو اجرا کنه. یه لوکیشن دیگه رو امتحان کن یا اشتراک رو به‌روز کن.');
+  @override String get errRouting => rtl('مسیریابی این سرور روی این دستگاه اجرا نمی‌شه. یه لوکیشن دیگه رو امتحان کن.');
+  @override String get errAlwaysOnRequired => rtl('تنظیمات، VPN همیشه‌روشن رو لازم داره. توی تنظیمات VPN سیستم روشنش کن، یا این گزینه رو توی تنظیمات ← پیشرفته خاموش کن.');
+  @override String get errAlwaysOnManaged => rtl('VPN همیشه‌روشنِ اندروید این اتصال رو نگه داشته. برای قطع، توی تنظیمات VPN سیستم خاموشش کن.');
+  @override String get errKeychain => rtl('پروفایل VPN خونده نشد. قفل گوشی رو باز کن و دوباره امتحان کن؛ اگه تکرار شد، اپ رو دوباره نصب کن.');
+
+  @override String get tabAdvanced => rtl('پیشرفته');
+  @override String get optAuto => rtl('خودکار');
+  @override String get optOn => rtl('روشن');
+  @override String get optOff => rtl('خاموش');
+  @override String get dnsServer => rtl('سرور DNS');
+  @override String get dnsServerHint => rtl('«خودکار» همون DNS خود سرور رو نگه می‌داره (از داخل پروکسی).');
+  @override String get dnsCustom => rtl('دلخواه');
+  @override String get dnsCustomHint => rtl('آی‌پی، یا آدرسی مثل https://dns.example/dns-query');
+  @override String get errDns => rtl('یه آی‌پی یا آدرس DNS وارد کن.');
+  @override String get routing => rtl('مسیریابی');
+  @override String get routingHint => rtl('چی از سرور رد بشه و چی مستقیم وصل بشه');
+  @override String get bypassIran => rtl('سایت‌های ایرانی مستقیم');
+  @override String get bypassIranHint => rtl('سایت‌های .ir و آی‌پی‌های ایران بدون سرور و مستقیم وصل می‌شن.');
+  @override String get bypassIranAppleNote => rtl('روی آیفون و مک فقط دامنه‌های .ir رو شامل می‌شه (اونجا فایل GeoIP نیست).');
+  @override String get blockAds => rtl('مسدود کردن تبلیغات و ردیاب‌ها');
+  @override String get blockAdsHint => rtl('دامنه‌های شناخته‌شده‌ی تبلیغاتی و ردیاب رو می‌بنده.');
+  @override String get fragment => rtl('فرگمنت TLS');
+  @override String get fragmentHint => rtl('دست‌دهی TLS رو تکه‌تکه می‌فرسته تا از فیلترینگ SNI رد بشه. فقط برای سرورهای TLS؛ ممکنه اتصال اول کمی کندتر بشه.');
+  @override String get reconnect => rtl('اتصال دوباره');
+  @override String get reconnectHint => rtl('وقتی اتصال قطع می‌شه چی بشه');
+  @override String get autoReconnect => rtl('اتصال دوباره‌ی خودکار');
+  @override String get autoReconnectHint => rtl('با فاصله‌های بیشتر و بیشتر دوباره تلاش می‌کنه. تا اون موقع ترافیک بسته می‌مونه.');
+  @override String get reconnectAttempts => rtl('تعداد تلاش');
+  @override String get unlimited => rtl('بی‌نهایت');
+  @override String get reconnectMaxDelay => rtl('بیشترین مکث');
+  @override String seconds(int value) => rtl(value >= 60 && value % 60 == 0 ? '${n('${value ~/ 60}')} دقیقه' : '${n('$value')} ثانیه');
+  @override String get onDemand => 'On Demand';
+  @override String get onDemandHint => rtl('اگه VPN یهو بسته بشه، سیستم خودش دوباره روشنش می‌کنه.');
+  @override String get protection => rtl('محافظت');
+  @override String get protectionHint => rtl('نگه داشتن ترافیک داخل تونل');
+  @override String get killSwitchNote => rtl('کیل‌سوییچ توی حالت VPN همیشه روشنه: اگه اتصال قطع بشه، ترافیک بسته می‌مونه تا دوباره وصل بشه یا خودت قطع کنی.');
+  @override String alwaysOnStatus(bool enabled, bool lockdown) => rtl(!enabled
+      ? 'VPN همیشه‌روشن: خاموش'
+      : (lockdown ? 'VPN همیشه‌روشن: روشن، اتصال بدون VPN بسته‌ست' : 'VPN همیشه‌روشن: روشن'));
+  @override String get requireAlwaysOn => rtl('VPN همیشه‌روشن الزامی باشه');
+  @override String get requireAlwaysOnHint => rtl('تا وقتی همیشه‌روشن برای این اپ تنظیم نشده، وصل نشو. فقط این حالت، اگه کل پروسه‌ی VPN بسته بشه هم ترافیک رو می‌بنده.');
+  @override String get openVpnSettings => rtl('باز کردن تنظیمات VPN سیستم');
+  @override String get systemControls => rtl('کنترل‌های سیستم');
+  @override String get systemControlsHint => rtl('نوتیفیکیشن و دکمه‌ی سریع');
+  @override String get notificationButton => rtl('دکمه‌ی نوتیفیکیشن');
+  @override String get notifDisconnect => rtl('قطع اتصال');
+  @override String get notifOpenApp => rtl('باز کردن اپ');
+  @override String get notifNone => rtl('هیچی');
+  @override String get quickAccess => rtl('دکمه‌ی سریع');
+  @override String quickAccessHint(String platform) => rtl(switch (platform) {
+        'Android' => 'یه کاشی توی Quick Settings که به آخرین سرور وصل می‌شه.',
+        'macOS' => 'یه آیتم توی منوبار که به آخرین سرور وصل می‌شه.',
+        'Windows' => 'یه آیکون توی سینی سیستم که به آخرین سرور وصل می‌شه.',
+        _ => 'یه دکمه توی Control Center که به آخرین سرور وصل می‌شه.',
+      });
+  @override String get quickAccessUnlock => rtl('باز کردن قفل لازم باشه');
+  @override String get quickAccessUnlockHint => rtl('قبل از وصل یا قطع، قفل دستگاه رو بپرسه.');
+  @override String get quickAccessAction => rtl('با زدنش');
+  @override String get quickToggle => rtl('وصل / قطع می‌شه');
+  @override String get quickOpenApp => rtl('اپ باز می‌شه');
+  @override String get addTile => rtl('اضافه کردن کاشی به Quick Settings');
+  @override String get tileAdded => rtl('کاشی اضافه شد.');
+  @override String get tileAlreadyAdded => rtl('کاشی از قبل اضافه شده.');
+  @override String get tileDeclined => rtl('کاشی اضافه نشد.');
+  @override String get clearQuickProfile => rtl('فراموش کردن پروفایل دکمه‌ی سریع');
+  @override String get quickProfileCleared => rtl('فراموش شد. یه بار از توی اپ وصل شو تا دکمه‌ی سریع دوباره کار کنه.');
+  @override String get quickUnavailable => rtl('روی این دستگاه در دسترس نیست.');
+  @override String optionsRefused(String detail) => rtl('موتور این تنظیمات رو قبول نکرد و با پیش‌فرض‌ها کار می‌کنه: $detail');
+  @override String get diagnostics => rtl('عیب‌یابی');
+  @override String get diagnosticsHint => rtl('برای پیدا کردن مشکل. کانفیگ و رمزی توش نیست.');
+  @override String get collectLogs => rtl('ثبت لاگ اتصال');
+  @override String get viewLog => rtl('دیدن لاگ');
+  @override String get copy => rtl('کپی');
+  @override String get copied => rtl('کپی شد');
+  @override String get logEmpty => rtl('هنوز چیزی ثبت نشده. یه بار وصل شو و دوباره ببین.');
+  @override String get testConnection => rtl('تست اتصال');
+  @override String get testConnectionHint => rtl('یه درخواست واقعی از داخل تونلِ روشن.');
+  @override String connectionOk(String ms) => rtl('کار می‌کنه، $ms');
+  @override String get connectionFailed => rtl('از داخل تونل جوابی نیومد.');
+  @override String get xrayCore => rtl('هسته‌ی Xray');
+  @override String get checking => rtl('در حال بررسی…');
 }

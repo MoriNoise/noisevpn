@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_info.dart';
-import '../../core/config/app_config.dart';
 import '../../core/l10n/locale_controller.dart';
 import '../../core/l10n/strings.dart';
 import '../../core/theme/app_tokens.dart';
@@ -12,27 +11,25 @@ import '../../core/theme/app_type.dart';
 import '../../core/theme/theme_transition.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_segmented.dart';
-import '../../core/widgets/app_switch.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/appearance_controls.dart';
 import '../../core/widgets/page_frame.dart';
-import '../../core/widgets/primary_button.dart';
-import '../auth/auth_controller.dart';
-import '../auth/auth_repository.dart';
-import '../shell/app_shell.dart' show UserAvatar;
+import '../vpn/engine_info.dart';
+import '../vpn/vpn_backend.dart';
 import '../vpn/vpn_controller.dart';
 import '../vpn/vpn_settings.dart';
+import 'advanced_tab.dart';
 import 'app_picker_page.dart';
+import 'settings_widgets.dart';
 
-enum _Tab { appearance, connection, general }
+enum _Tab { appearance, connection, advanced, general }
 
 bool get _android => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 bool get _windows => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+bool get _apple => !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS);
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.user});
-
-  final AuthUser user;
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -57,7 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       _Tab.connection => const _ConnectionTab(),
-      _Tab.general => _GeneralTab(user: widget.user),
+      _Tab.advanced => const AdvancedTab(),
+      _Tab.general => const _GeneralTab(),
     };
 
     return PageFrame(
@@ -69,13 +67,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
+              constraints: const BoxConstraints(maxWidth: 640),
               child: AppSegmented<_Tab>(
                 selected: _tab,
                 onChanged: (tab, _) => setState(() => _tab = tab),
                 options: [
                   SegmentOption(value: _Tab.appearance, label: s.appearance, icon: Icons.palette_outlined),
                   SegmentOption(value: _Tab.connection, label: s.tabConnection, icon: Icons.vpn_lock_outlined),
+                  SegmentOption(value: _Tab.advanced, label: s.tabAdvanced, icon: Icons.build_outlined),
                   SegmentOption(value: _Tab.general, label: s.tabGeneral, icon: Icons.tune_rounded),
                 ],
               ),
@@ -88,40 +87,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Two columns when there's room, one otherwise.
-class _Columns extends StatelessWidget {
-  const _Columns({required this.left, required this.right});
-
-  final List<Widget> left;
-  final List<Widget> right;
-
-  List<Widget> _spaced(List<Widget> items) => [
-        for (var i = 0; i < items.length; i++) ...[if (i > 0) const SizedBox(height: 12), items[i]],
-      ];
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        if (c.maxWidth < 760 || right.isEmpty) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: _spaced([...left, ...right]),
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _spaced(left))),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _spaced(right))),
-          ],
-        );
-      },
     );
   }
 }
@@ -162,12 +127,17 @@ class _ConnectionTab extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (notice != null) ...[notice, const SizedBox(height: 12)],
-        _Columns(
-          left: const [_ModeCard()],
+        SettingsColumns(
+          left: [
+            const _ModeCard(),
+            // Every VPN platform can keep LAN out: Android/macOS/Windows
+            // through flutter_vless, iOS through Xray direct rules.
+            if (!settings.proxyOnly) const _NetworkCard(),
+            const _DnsCard(),
+          ],
           right: [
             if (_android) const _PerAppCard(),
-            // Windows takes bypassSubnets too (as direct rules inside Xray).
-            if ((_android || _windows) && !settings.proxyOnly) const _NetworkCard(),
+            const _RoutingCard(),
           ],
         ),
       ],
@@ -361,7 +331,7 @@ class _NetworkCard extends ConsumerWidget {
     return AppCard(
       child: Column(
         children: [
-          _SwitchRow(
+          SwitchRow(
             title: s.bypassLan,
             hint: s.bypassLanHint,
             value: settings.bypassLan,
@@ -370,7 +340,7 @@ class _NetworkCard extends ConsumerWidget {
           // Windows always sends DNS through the proxy; the switch is Android's.
           if (_android) ...[
             const SizedBox(height: 16),
-            _SwitchRow(
+            SwitchRow(
               title: s.dnsTunnel,
               hint: s.dnsTunnelHint,
               value: settings.dnsThroughTunnel,
@@ -383,32 +353,149 @@ class _NetworkCard extends ConsumerWidget {
   }
 }
 
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({required this.title, required this.hint, required this.value, required this.onChanged});
+class _DnsCard extends ConsumerWidget {
+  const _DnsCard();
 
-  final String title;
-  final String hint;
-  final bool value;
-  final ValueChanged<bool> onChanged;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final settings = ref.watch(vpnSettingsProvider);
+    final controller = ref.read(vpnSettingsProvider.notifier);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ChoiceRow<DnsChoice>(
+            title: s.dnsServer,
+            hint: s.dnsServerHint,
+            selected: settings.dns,
+            options: [
+              (DnsChoice.auto, s.optAuto),
+              (DnsChoice.cloudflare, 'Cloudflare'),
+              (DnsChoice.google, 'Google'),
+              (DnsChoice.quad9, 'Quad9'),
+              (DnsChoice.adguard, 'AdGuard'),
+              (DnsChoice.custom, s.dnsCustom),
+            ],
+            onChanged: (v) => controller.update((x) => x.copyWith(dns: v)),
+          ),
+          if (settings.dns == DnsChoice.custom) ...[
+            const SizedBox(height: 14),
+            _DnsField(value: settings.customDns),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DnsField extends ConsumerStatefulWidget {
+  const _DnsField({required this.value});
+
+  final String value;
+
+  @override
+  ConsumerState<_DnsField> createState() => _DnsFieldState();
+}
+
+class _DnsFieldState extends ConsumerState<_DnsField> {
+  late final _controller = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus) _save();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final text = _controller.text.trim();
+    if (VpnSettings.normalizeDns(text) == null) {
+      setState(() => _error = S.of(context).errDns);
+      return;
+    }
+    setState(() => _error = null);
+    ref.read(vpnSettingsProvider.notifier).update((v) => v.copyWith(customDns: text));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final t = context.tokens;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AppType.label.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text(hint, style: AppType.caption.copyWith(color: t.textMuted)),
-            ],
-          ),
+        AppTextField(
+          label: s.dnsCustom,
+          hint: s.dnsCustomHint,
+          controller: _controller,
+          focusNode: _focus,
+          icon: Icons.dns_outlined,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _save(),
         ),
-        const SizedBox(width: 12),
-        AppSwitch(value: value, label: title, onChanged: onChanged),
+        if (_error != null) ...[
+          const SizedBox(height: 6),
+          Text(_error!, style: AppType.caption.copyWith(color: t.danger)),
+        ],
       ],
+    );
+  }
+}
+
+class _RoutingCard extends ConsumerWidget {
+  const _RoutingCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final settings = ref.watch(vpnSettingsProvider);
+    final controller = ref.read(vpnSettingsProvider.notifier);
+    // geosite.dat ships with the Android and Windows runtimes only.
+    final geo = _android || _windows;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CardHeader(icon: Icons.alt_route_rounded, title: s.routing, subtitle: s.routingHint),
+          const SizedBox(height: 16),
+          SwitchRow(
+            title: s.bypassIran,
+            hint: _apple ? '${s.bypassIranHint} ${s.bypassIranAppleNote}' : s.bypassIranHint,
+            value: settings.bypassIran,
+            onChanged: (v) => controller.update((x) => x.copyWith(bypassIran: v)),
+          ),
+          if (geo) ...[
+            const SizedBox(height: 16),
+            SwitchRow(
+              title: s.blockAds,
+              hint: s.blockAdsHint,
+              value: settings.blockAds,
+              onChanged: (v) => controller.update((x) => x.copyWith(blockAds: v)),
+            ),
+          ],
+          const SizedBox(height: 16),
+          SwitchRow(
+            title: s.fragment,
+            hint: s.fragmentHint,
+            value: settings.fragment,
+            onChanged: (v) => controller.update((x) => x.copyWith(fragment: v)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -416,19 +503,13 @@ class _SwitchRow extends StatelessWidget {
 // ── General ───────────────────────────────────────────────────────────────
 
 class _GeneralTab extends StatelessWidget {
-  const _GeneralTab({required this.user});
-
-  final AuthUser user;
+  const _GeneralTab();
 
   @override
   Widget build(BuildContext context) {
-    return _Columns(
-      left: const [_LanguageCard()],
-      right: [
-        const _AboutCard(),
-        // Sign out comes back with the API (AppConfig.requireLogin).
-        if (AppConfig.requireLogin) _AccountCard(user: user),
-      ],
+    return const SettingsColumns(
+      left: [_LanguageCard()],
+      right: [_AboutCard()],
     );
   }
 }
@@ -465,19 +546,27 @@ class _LanguageCard extends ConsumerWidget {
   }
 }
 
-class _AboutCard extends StatelessWidget {
+class _AboutCard extends ConsumerWidget {
   const _AboutCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
     final t = context.tokens;
+    final core = ref.watch(vpnBackendProvider).isSupported ? ref.watch(coreVersionProvider).valueOrNull : null;
     Widget row(String label, String value) => Padding(
           padding: const EdgeInsets.only(top: 10),
           child: Row(
             children: [
               Expanded(child: Text(label, style: AppType.label.copyWith(color: t.textMuted))),
-              Text(value, style: AppType.label.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.end,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.label.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700),
+                ),
+              ),
             ],
           ),
         );
@@ -489,50 +578,8 @@ class _AboutCard extends StatelessWidget {
           CardHeader(icon: Icons.info_outline_rounded, title: s.about, subtitle: AppInfo.name),
           const SizedBox(height: 8),
           row(s.version('').trim(), AppInfo.version),
-          row(s.engine, 'flutter_vless 1.1.6 (Xray)'),
-        ],
-      ),
-    );
-  }
-}
-
-class _AccountCard extends ConsumerWidget {
-  const _AccountCard({required this.user});
-
-  final AuthUser user;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    final t = context.tokens;
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CardHeader(icon: Icons.person_outline_rounded, title: s.account),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              UserAvatar(user: user, size: 42),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.signedInAs, style: AppType.caption.copyWith(color: t.textFaint)),
-                    Text(user.username, style: AppType.title.copyWith(color: t.textPrimary)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          DangerOutlineButton(
-            label: s.signOut,
-            icon: Icons.logout_rounded,
-            onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
-          ),
+          row(s.engine, 'flutter_vless 1.1.7'),
+          if (core != null) row(s.xrayCore, core),
         ],
       ),
     );

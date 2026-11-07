@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 
+import 'wireguard.dart';
+
 /// One connectable profile from the subscription.
 @immutable
 class VpnServer {
@@ -228,40 +230,79 @@ const localSourceId = 'local';
 
 /// Turns a subscription body (or pasted configs) into servers. Entries
 /// flutter_vless can't turn into a config are skipped instead of failing
-/// the whole list.
+/// the whole list. WireGuard links and `.conf` files are parsed here, since
+/// flutter_vless only reads WireGuard from Clash / sing-box files.
 List<VpnServer> parseSubscription(String body, {required String sourceId}) {
-  final List<FlutterVlessURL> parsed;
-  try {
-    parsed = FlutterVless.parseMany(body);
-  } catch (_) {
-    return const [];
+  final (wireGuard, rest) = WireGuardProfile.extract(body);
+
+  List<FlutterVlessURL> parsed = const [];
+  if (rest.trim().isNotEmpty) {
+    try {
+      parsed = FlutterVless.parseMany(rest);
+    } catch (_) {
+      parsed = const [];
+    }
   }
 
   final servers = <VpnServer>[];
   final seen = <String>{};
+
+  void add({
+    required String link,
+    required String remark,
+    required String fallbackName,
+    required String protocol,
+    required String transport,
+    required String host,
+    required int port,
+    required String config,
+  }) {
+    final id = stableId('$sourceId|$link');
+    if (!seen.add(id)) return;
+    final name = remark.trim();
+    final info = RemarkInfo.parse(name);
+    servers.add(VpnServer(
+      id: id,
+      sourceId: sourceId,
+      shareLink: link,
+      remark: name.isEmpty ? fallbackName : name,
+      countryCode: info.countryCode,
+      tag: info.tag,
+      protocol: protocol,
+      transport: transport,
+      host: host,
+      port: port,
+      config: config,
+    ));
+  }
+
   for (final p in parsed) {
     try {
-      final id = stableId('$sourceId|${p.url}');
-      if (!seen.add(id)) continue;
-      final remark = p.remark.trim();
-      final info = RemarkInfo.parse(remark);
-      final scheme = p.url.contains('://') ? p.url.split('://').first.toLowerCase() : 'xray';
-      servers.add(VpnServer(
-        id: id,
-        sourceId: sourceId,
-        shareLink: p.url,
-        remark: remark.isEmpty ? p.address : remark,
-        countryCode: info.countryCode,
-        tag: info.tag,
-        protocol: scheme,
+      add(
+        link: p.url,
+        remark: p.remark,
+        fallbackName: p.address,
+        protocol: p.url.contains('://') ? p.url.split('://').first.toLowerCase() : 'xray',
         transport: p.network,
         host: p.address,
         port: p.port,
         config: p.getFullConfiguration(),
-      ));
+      );
     } catch (_) {
       continue;
     }
+  }
+  for (final w in wireGuard) {
+    add(
+      link: w.toLink(),
+      remark: w.remark,
+      fallbackName: w.host,
+      protocol: 'wireguard',
+      transport: 'udp',
+      host: w.host,
+      port: w.port,
+      config: w.toXrayConfig(),
+    );
   }
   return servers;
 }

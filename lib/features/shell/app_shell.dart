@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_info.dart';
-import '../../core/config/app_config.dart';
 import '../../core/l10n/strings.dart';
 import '../../core/responsive/form_factor.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/app_type.dart';
 import '../../core/widgets/ambient_background.dart';
 import '../../core/widgets/brand_mark.dart';
-import '../auth/auth_repository.dart';
 import '../home/home_screen.dart';
 import '../servers/countries.dart';
 import '../servers/servers_screen.dart';
@@ -27,9 +25,7 @@ class _NavItem {
 }
 
 class AppShell extends ConsumerWidget {
-  const AppShell({super.key, required this.user});
-
-  final AuthUser user;
+  const AppShell({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,7 +46,7 @@ class AppShell extends ConsumerWidget {
       children: [
         const HomeScreen(),
         const ServersScreen(),
-        SettingsScreen(user: user),
+        const SettingsScreen(),
       ],
     );
 
@@ -60,7 +56,7 @@ class AppShell extends ConsumerWidget {
         body: AmbientBackground(
           child: Row(
             children: [
-              _Sidebar(items: items, index: index, onSelect: select, user: user),
+              _Sidebar(items: items, index: index, onSelect: select),
               Expanded(child: SafeArea(child: body)),
             ],
           ),
@@ -79,17 +75,15 @@ class AppShell extends ConsumerWidget {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.items, required this.index, required this.onSelect, required this.user});
+  const _Sidebar({required this.items, required this.index, required this.onSelect});
 
   final List<_NavItem> items;
   final int index;
   final ValueChanged<int> onSelect;
-  final AuthUser user;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final s = S.of(context);
     final alpha = t.glassEnabled ? 0.72 : 1.0;
 
     final panel = RepaintBoundary(
@@ -122,36 +116,6 @@ class _Sidebar extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 28),
-              if (AppConfig.requireLogin) ...[
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: t.surface.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: t.glassEnabled ? t.borderSoft : t.border),
-                ),
-                child: Row(
-                  children: [
-                    UserAvatar(user: user, size: 34),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(s.signedInAs, style: AppType.caption.copyWith(color: t.textFaint)),
-                          Text(
-                            user.username,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppType.label.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              ],
               for (var i = 0; i < items.length; i++) ...[
                 _SideNavItem(item: items[i], selected: i == index, onTap: () => onSelect(i)),
                 const SizedBox(height: 4),
@@ -358,36 +322,6 @@ class _BottomItem extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Initial-letter avatar on the accent gradient.
-class UserAvatar extends StatelessWidget {
-  const UserAvatar({super.key, required this.user, this.size = 40});
-
-  final AuthUser user;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [t.accentBright, t.accentDeep],
-        ),
-      ),
-      child: Text(
-        user.initial,
-        style: AppType.label.copyWith(color: Colors.white, fontSize: size * 0.4, fontWeight: FontWeight.w800, height: 1),
       ),
     );
   }

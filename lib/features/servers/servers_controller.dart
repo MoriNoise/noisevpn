@@ -10,7 +10,6 @@ import '../../core/app_info.dart';
 import '../../core/prefs.dart';
 import '../vpn/batch_ping.dart';
 import '../vpn/vpn_backend.dart';
-import '../vpn/vpn_controller.dart';
 import 'server_models.dart';
 
 // ── Sources: subscriptions + local configs ──────────────────────────────

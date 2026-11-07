@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -44,6 +45,16 @@ class MainActivity : FlutterActivity() {
                             it.service.className == "com.github.tfox.flutter_vless.xray.service.XrayVPNService"
                         }
                         result.success(running)
+                    }
+                    // Settings → Advanced → Protection: Always-on VPN is set by the user here.
+                    "openVpnSettings" -> {
+                        val opened = try {
+                            startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            true
+                        } catch (e: Exception) {
+                            false
+                        }
+                        result.success(opened)
                     }
                     else -> result.notImplemented()
                 }
