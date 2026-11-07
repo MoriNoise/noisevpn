@@ -54,3 +54,10 @@ files would stay behind.
   and status update to it. Flutter creates the view under `HWND_MESSAGE`, so
   with the old order the plugin cached the wrong window and every message was
   dropped: the native side connected, the app never heard about it.
+
+## Faster Windows TUN connect
+- New `lib/features/vpn/geo_assets.dart` (+ `geo_assets_io.dart`, `geo_assets_stub.dart`):
+  finds the app's own `xray\` folder on Windows.
+- `lib/features/vpn/flutter_vless_backend.dart`: passes it as `geoAssetsDirectory`,
+  so flutter_vless no longer copies geoip.dat + geosite.dat (about 27 MB) into a
+  new private folder in C:\Windows\Temp on every TUN connect.

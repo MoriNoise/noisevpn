@@ -7,6 +7,7 @@ import 'package:flutter_vless/flutter_vless.dart';
 
 import '../../core/config/app_config.dart';
 import '../servers/server_models.dart';
+import 'geo_assets.dart';
 import 'vpn_backend.dart';
 
 bool get _iOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
@@ -159,6 +160,9 @@ class FlutterVlessBackend implements VpnBackend {
         androidDnsPolicy:
             _android && !options.proxyOnly && options.dnsThroughTunnel ? AndroidDnsPolicy.proxy : AndroidDnsPolicy.config,
         notificationDisconnectButtonName: disconnectLabel.length > 80 ? disconnectLabel.substring(0, 80) : disconnectLabel,
+        // Windows: use the geo files next to the app instead of copying them
+        // into a new private folder on every connect.
+        geoAssetsDirectory: bundledGeoAssetsDirectory(),
       );
     } on PlatformException catch (e) {
       throw _map(e);
